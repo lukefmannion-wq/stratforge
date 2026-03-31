@@ -26,7 +26,8 @@ if config.config_file_name is not None:
 load_dotenv(os.path.join(parent_dir, ".env"))
 DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL:
-    config.set_main_option("sqlalchemy.url", DATABASE_URL)
+    safe_url = DATABASE_URL.replace("%", "%%")
+    config.set_main_option("sqlalchemy.url", safe_url)
 
 # add your model's MetaData object here
 # for 'autogenerate' support
