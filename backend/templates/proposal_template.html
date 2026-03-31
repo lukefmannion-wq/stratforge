@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ proposal.title }}</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 32px;
+        font-family: Georgia, Cambria, "Times New Roman", Times, serif;
+        color: #111111;
+        background: #ffffff;
+      }
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+      }
+      .no-print {
+        display: block;
+        margin-bottom: 24px;
+        padding: 14px 18px;
+        border: 1px solid #0f4c81;
+        background: #e8f1fb;
+        color: #0f4c81;
+        border-radius: 12px;
+        font-size: 0.95rem;
+      }
+      .brand {
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        font-size: 0.85rem;
+        color: #555555;
+      }
+      .title {
+        margin: 0;
+        font-size: 2.7rem;
+        line-height: 1.05;
+      }
+      .subtitle {
+        margin: 0;
+        color: #555555;
+        font-size: 1rem;
+      }
+      .section {
+        margin-top: 36px;
+      }
+      .section h2 {
+        margin-bottom: 14px;
+        font-size: 1.25rem;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: #111111;
+      }
+      .section p,
+      .section li {
+        line-height: 1.75;
+        font-size: 1rem;
+        color: #222222;
+      }
+      .summary-grid {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .card {
+        padding: 20px;
+        border: 1px solid #dedede;
+        border-radius: 18px;
+        background: #f9f9f9;
+      }
+      .table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 16px;
+      }
+      .table th,
+      .table td {
+        border: 1px solid #d7d7d7;
+        padding: 12px 14px;
+        text-align: left;
+        vertical-align: top;
+        font-size: 0.98rem;
+      }
+      .table th {
+        background: #f6f6f6;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+      }
+      .total-row td {
+        font-weight: 700;
+        border-top: 2px solid #111111;
+      }
+      .signature {
+        margin-top: 48px;
+        display: grid;
+        gap: 24px;
+        grid-template-columns: 1fr 1fr;
+      }
+      .signature-block {
+        padding-top: 24px;
+        border-top: 1px solid #d7d7d7;
+        color: #444444;
+      }
+      @media print {
+        .no-print {
+          display: none;
+        }
+        body {
+          padding: 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="no-print">To save as PDF: File → Print → Save as PDF</div>
+      <div>
+        <div class="brand">Proposal & Statement of Work</div>
+        <h1 class="title">{{ proposal.title }}</h1>
+        <p class="subtitle">Prepared for {{ lead_company }} | {{ contact_name or 'Contact' }}</p>
+      </div>
+
+      <div class="summary-grid section">
+        <div class="card">
+          <strong>Consultant</strong>
+          <p>{{ consultant_name }}<br />{{ consultant_email }}</p>
+        </div>
+        <div class="card">
+          <strong>Proposal Date</strong>
+          <p>{{ proposal.created_at.strftime('%B %d, %Y') }}</p>
+          <strong>Status</strong>
+          <p>{{ proposal.status }}</p>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Executive Summary</h2>
+        <p>{{ proposal.executive_summary }}</p>
+      </div>
+
+      <div class="section">
+        <h2>Problem Statement</h2>
+        <p>{{ proposal.problem_statement }}</p>
+      </div>
+
+      <div class="section">
+        <h2>Proposed Approach</h2>
+        {% for phase in proposal.proposed_approach %}
+        <div style="margin-bottom: 22px;">
+          <strong>{{ phase.phase_name }}</strong>
+          <p>{{ phase.description }}</p>
+          {% if phase.deliverables %}
+          <ul>
+            {% for item in phase.deliverables %}
+            <li>{{ item }}</li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+          {% if phase.acceptance_criteria %}
+          <p><strong>Acceptance Criteria</strong></p>
+          <ul>
+            {% for criteria in phase.acceptance_criteria %}
+            <li>{{ criteria }}</li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="section">
+        <h2>Timeline</h2>
+        <p>{{ proposal.timeline }}</p>
+      </div>
+
+      <div class="section">
+        <h2>Pricing</h2>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th>Quantity</th>
+              <th>Unit Price</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in proposal.pricing_table %}
+            <tr>
+              <td>{{ item.description }}</td>
+              <td>{{ item.quantity }}</td>
+              <td>{{ '{:,.2f}'.format(item.unit_price) }} {{ proposal.currency }}</td>
+              <td>{{ '{:,.2f}'.format(item.total) }} {{ proposal.currency }}</td>
+            </tr>
+            {% endfor %}
+            <tr class="total-row">
+              <td colspan="3">Total</td>
+              <td>{{ '{:,.2f}'.format(proposal.total_price) }} {{ proposal.currency }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="signature">
+        <div class="signature-block">
+          <p>Consultant Signature</p>
+          <p style="margin-top: 40px;">______________________________</p>
+          <p>Date: ______________________</p>
+        </div>
+        <div class="signature-block">
+          <p>Client Signature</p>
+          <p style="margin-top: 40px;">______________________________</p>
+          <p>Date: ______________________</p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

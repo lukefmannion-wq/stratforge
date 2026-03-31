@@ -11,13 +11,17 @@ from .auth import (create_access_token, get_current_user, hash_password,
 from .database import Base, SessionLocal, engine, get_db
 from .leads import router as leads_router
 from .outreach import router as outreach_router
+from .proposals import router as proposals_router
 from .models import ConsultantProfile, User
 from .schemas import (ConsultantProfileOut, ProfileInput, ProfileUpdate,
                       TokenResponse, UserCreate)
+from fastapi.templating import Jinja2Templates
 
 load_dotenv()
 
 app = FastAPI()
+
+templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 if not ANTHROPIC_API_KEY:
@@ -134,6 +138,7 @@ def generate_expertise(
 
 app.include_router(leads_router)
 app.include_router(outreach_router)
+app.include_router(proposals_router)
 
 
 @app.get("/api/expertise/profile", response_model=ConsultantProfileOut)

@@ -131,5 +131,68 @@ class OutreachSequenceResponse(BaseModel):
     messages: List[OutreachMessageOut]
 
 
+class ProposalPhase(BaseModel):
+    phase_name: str
+    description: str
+    deliverables: List[str]
+    acceptance_criteria: Optional[List[str]] = None
+
+
+class PricingLineItem(BaseModel):
+    description: str
+    quantity: float
+    unit_price: float
+    total: float
+
+
+class ProposalOut(BaseModel):
+    id: int
+    lead_id: int
+    version: int
+    proposal_type: str
+    title: str
+    executive_summary: str
+    problem_statement: str
+    proposed_approach: List[ProposalPhase]
+    timeline: str
+    pricing_table: List[PricingLineItem]
+    total_price: float
+    currency: str
+    status: str
+    notes: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    sent_at: Optional[datetime] = None
+    company_name: Optional[str] = None
+    contact_name: Optional[str] = None
+    contact_role: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+
+
+class ProposalGenerateRequest(BaseModel):
+    lead_id: int
+    proposal_type: str
+    scope_notes: str
+    timeline_preference: str
+    rate_type: str
+    rate_amount: float
+    currency: str = "USD"
+
+
+class ProposalUpdate(BaseModel):
+    title: Optional[str] = None
+    executive_summary: Optional[str] = None
+    problem_statement: Optional[str] = None
+    proposed_approach: Optional[List[ProposalPhase]] = None
+    timeline: Optional[str] = None
+    pricing_table: Optional[List[PricingLineItem]] = None
+    total_price: Optional[float] = None
+    currency: Optional[str] = None
+    status: Optional[str] = None
+    notes: Optional[str] = None
+
+
 class ReanalyzeRequest(BaseModel):
     re_analyze: bool = False

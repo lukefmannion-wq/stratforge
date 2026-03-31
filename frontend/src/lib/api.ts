@@ -3,6 +3,7 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 interface ApiOptions extends RequestInit {
   body?: any;
+  responseType?: "json" | "text";
 }
 
 async function apiFetch<T>(path: string, options: ApiOptions = {}): Promise<T> {
@@ -20,17 +21,18 @@ async function apiFetch<T>(path: string, options: ApiOptions = {}): Promise<T> {
     body = JSON.stringify(body);
   }
 
+  const { responseType = "json", ...fetchOptions } = options;
   const response = await fetch(`${BASE_URL}/api${path}`, {
-    ...options,
+    ...fetchOptions,
     headers,
     body,
   });
 
   const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
+  const data = responseType === "text" ? text as unknown as T : text ? JSON.parse(text) : null;
 
   if (!response.ok) {
-    const message = data?.detail || data?.message || "Request failed";
+    const message = (responseType === "json" ? (data as any)?.detail || (data as any)?.message : text) || "Request failed";
     throw new Error(message);
   }
 
@@ -128,6 +130,69 @@ export interface OutreachMessage {
   generated_at: string;
   sent_at?: string | null;
   notes?: string | null;
+  company_name?: string | null;
+  contact_name?: string | null;
+  contact_role?: string | null;
+}
+
+export interface ProposalPhase {
+  phase_name: string;
+  description: string;
+  deliverables: string[];
+  acceptance_criteria?: string[] | null;
+}
+
+export interface PricingLineItem {
+  description: string;
+  quantity: number;
+  unit_price: number;
+  total: number;
+}
+
+export interface Proposal {
+  id: number;
+  lead_id: number;
+  version: number;
+  proposal_type: string;
+  title: string;
+  executive_summary: string;
+  problem_statement: string;
+  proposed_approach: ProposalPhase[];
+  timeline: string;
+  pricing_table: PricingLineItem[];
+  total_price: number;
+  currency: string;
+  status: string;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  sent_at?: string | null;
+  company_name?: string | null;
+  contact_name?: string | null;
+  contact_role?: string | null;
+}
+
+export interface ProposalGenerateRequest {
+  lead_id: number;
+  proposal_type: string;
+  scope_notes: string;
+  timeline_preference: string;
+  rate_type: string;
+  rate_amount: number;
+  currency?: string;
+}
+
+export interface ProposalUpdateRequest {
+  title?: string;
+  executive_summary?: string;
+  problem_statement?: string;
+  proposed_approach?: ProposalPhase[];
+  timeline?: string;
+  pricing_table?: PricingLineItem[];
+  total_price?: number;
+  currency?: string;
+  status?: string;
+  notes?: string;
 }
 
 export interface OutreachGenerateRequest {
@@ -178,6 +243,58 @@ export async function deleteOutreachMessage(id: number) {
 export async function markOutreachSent(id: number) {
   return apiFetch<OutreachMessage>(`/outreach/${id}/mark-sent`, {
     method: "POST",
+  });
+}
+
+export async function generateProposal(payload: ProposalGenerateRequest) {
+  return apiFetch<Proposal>("/proposals/generate", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export async function getProposals(lead_id?: number) {
+  const query = lead_id ? `?lead_id=${encodeURIComponent(lead_id)}` : "";
+  return apiFetch<Proposal[]>(`/proposals${query}`, {
+    method: "GET",
+  });
+}
+
+export async function getProposal(id: number) {
+  return apiFetch<Proposal>(`/proposals/${id}`, {
+    method: "GET",
+  });
+}
+
+export async function updateProposal(id: number, payload: ProposalUpdateRequest) {
+  return apiFetch<Proposal>(`/proposals/${id}`, {
+    method: "PUT",
+    body: payload,
+  });
+}
+
+export async function deleteProposal(id: number) {
+  return apiFetch<{ detail: string }>(`/proposals/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function duplicateProposal(id: number) {
+  return apiFetch<Proposal>(`/proposals/${id}/duplicate`, {
+    method: "POST",
+  });
+}
+
+export async function markProposalSent(id: number) {
+  return apiFetch<Proposal>(`/proposals/${id}/mark-sent`, {
+    method: "POST",
+  });
+}
+
+export async function exportProposalHtml(id: number) {
+  return apiFetch<string>(`/proposals/${id}/export-html`, {
+    method: "GET",
+    responseType: "text",
   });
 }
 

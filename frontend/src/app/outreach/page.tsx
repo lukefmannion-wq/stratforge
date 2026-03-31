@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import {
   getLead,
   getOutreachMessages,
@@ -31,9 +31,7 @@ const statusClasses: Record<string, string> = {
 
 export default function OutreachPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const leadIdParam = searchParams?.get('lead_id');
-  const leadId = leadIdParam ? Number(leadIdParam) : null;
+  const [leadId, setLeadId] = useState<number | null>(null);
   const [lead, setLead] = useState<any>(null);
   const [messages, setMessages] = useState<OutreachMessage[]>([]);
   const [selectedTab, setSelectedTab] = useState('cold_email');
@@ -58,6 +56,12 @@ export default function OutreachPage() {
     if (!getToken()) {
       router.push('/login');
       return;
+    }
+
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get('lead_id');
+      setLeadId(id ? Number(id) : null);
     }
   }, [router]);
 

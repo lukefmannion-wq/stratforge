@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, JSON
+from sqlalchemy import Column, Float, Integer, String, DateTime, Text, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -48,6 +48,7 @@ class Lead(Base):
 
     user = relationship("User", back_populates="leads")
     outreach_messages = relationship("OutreachMessage", back_populates="lead", cascade="all, delete-orphan")
+    proposals = relationship("Proposal", back_populates="lead", cascade="all, delete-orphan")
 
 
 class OutreachMessage(Base):
@@ -66,3 +67,29 @@ class OutreachMessage(Base):
 
     user = relationship("User")
     lead = relationship("Lead", back_populates="outreach_messages")
+
+
+class Proposal(Base):
+    __tablename__ = "proposals"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    lead_id = Column(Integer, ForeignKey("leads.id"), nullable=False, index=True)
+    version = Column(Integer, nullable=False, default=1)
+    proposal_type = Column(String(50), nullable=False)
+    title = Column(String(255), nullable=False)
+    executive_summary = Column(Text, nullable=False)
+    problem_statement = Column(Text, nullable=False)
+    proposed_approach = Column(JSON, nullable=False)
+    timeline = Column(String(255), nullable=False)
+    pricing_table = Column(JSON, nullable=False)
+    total_price = Column(Float, nullable=False)
+    currency = Column(String(10), nullable=False, default="USD")
+    status = Column(String(50), nullable=False, default="Draft")
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, nullable=False, onupdate=datetime.utcnow)
+    sent_at = Column(DateTime, nullable=True)
+
+    user = relationship("User")
+    lead = relationship("Lead", back_populates="proposals")
