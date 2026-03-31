@@ -111,6 +111,9 @@ export interface Lead {
   signal_justification?: string | null;
   enrichment_data?: Record<string, any> | null;
   status: string;
+  pipeline_stage?: string;
+  deal_value?: number | null;
+  expected_close_date?: string | null;
   created_at: string;
   outreach_count?: number;
 }
@@ -118,6 +121,37 @@ export interface Lead {
 export interface LeadImportResponse {
   imported: number;
   processed: number;
+}
+
+export interface PipelineLead extends Lead {
+  pipeline_stage: string;
+  deal_value?: number | null;
+  expected_close_date?: string | null;
+  proposal_count?: number;
+}
+
+export interface PipelineEvent {
+  id: number;
+  lead_id: number;
+  event_type: string;
+  from_stage?: string | null;
+  to_stage?: string | null;
+  note?: string | null;
+  created_at: string;
+  company_name?: string | null;
+  contact_name?: string | null;
+  contact_role?: string | null;
+}
+
+export interface PipelineMetrics {
+  total_leads: number;
+  leads_by_stage: Record<string, number>;
+  lead_to_call_rate: number;
+  call_to_close_rate: number;
+  total_pipeline_value: number;
+  closed_won_value: number;
+  avg_deal_value: number;
+  outreach_response_rate: number;
 }
 
 export interface OutreachMessage {
@@ -295,6 +329,57 @@ export async function exportProposalHtml(id: number) {
   return apiFetch<string>(`/proposals/${id}/export-html`, {
     method: "GET",
     responseType: "text",
+  });
+}
+
+export async function getPipeline() {
+  return apiFetch<Record<string, PipelineLead[]>>("/pipeline", {
+    method: "GET",
+  });
+}
+
+export async function updatePipelineStage(id: number, new_stage: string) {
+  return apiFetch<PipelineLead>(`/pipeline/${id}/stage`, {
+    method: "PUT",
+    body: { new_stage },
+  });
+}
+
+export async function updatePipelineDeal(
+  id: number,
+  payload: Partial<{
+    deal_value: number | null;
+    expected_close_date: string | null;
+  }>,
+) {
+  return apiFetch<PipelineLead>(`/pipeline/${id}/deal`, {
+    method: "PUT",
+    body: payload,
+  });
+}
+
+export async function getPipelineMetrics() {
+  return apiFetch<PipelineMetrics>("/pipeline/metrics", {
+    method: "GET",
+  });
+}
+
+export async function getPipelineActivity(lead_id: number) {
+  return apiFetch<PipelineEvent[]>(`/pipeline/${lead_id}/activity`, {
+    method: "GET",
+  });
+}
+
+export async function getRecentPipelineActivity() {
+  return apiFetch<PipelineEvent[]>("/pipeline/activity/recent", {
+    method: "GET",
+  });
+}
+
+export async function addPipelineNote(lead_id: number, note: string) {
+  return apiFetch<PipelineEvent>(`/pipeline/${lead_id}/note`, {
+    method: "POST",
+    body: { note },
   });
 }
 

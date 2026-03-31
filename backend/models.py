@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Float, Integer, String, DateTime, Text, ForeignKey, JSON
+from sqlalchemy import Column, Date, Float, Integer, String, DateTime, Text, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -44,11 +44,15 @@ class Lead(Base):
     signal_justification = Column(Text, nullable=True)
     enrichment_data = Column(JSON, nullable=True)
     status = Column(String(50), nullable=False, default="Identified")
+    pipeline_stage = Column(String(50), nullable=False, default="Identified")
+    deal_value = Column(Float, nullable=True)
+    expected_close_date = Column(Date, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     user = relationship("User", back_populates="leads")
     outreach_messages = relationship("OutreachMessage", back_populates="lead", cascade="all, delete-orphan")
     proposals = relationship("Proposal", back_populates="lead", cascade="all, delete-orphan")
+    pipeline_events = relationship("PipelineEvent", back_populates="lead", cascade="all, delete-orphan")
 
 
 class OutreachMessage(Base):
@@ -93,3 +97,19 @@ class Proposal(Base):
 
     user = relationship("User")
     lead = relationship("Lead", back_populates="proposals")
+
+
+class PipelineEvent(Base):
+    __tablename__ = "pipeline_events"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    lead_id = Column(Integer, ForeignKey("leads.id"), nullable=False, index=True)
+    event_type = Column(String(50), nullable=False)
+    from_stage = Column(String(50), nullable=True)
+    to_stage = Column(String(50), nullable=True)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    user = relationship("User")
+    lead = relationship("Lead", back_populates="pipeline_events")

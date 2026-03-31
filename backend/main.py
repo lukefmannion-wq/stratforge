@@ -11,6 +11,7 @@ from .auth import (create_access_token, get_current_user, hash_password,
 from .database import Base, SessionLocal, engine, get_db
 from .leads import router as leads_router
 from .outreach import router as outreach_router
+from .pipeline import router as pipeline_router
 from .proposals import router as proposals_router
 from .models import ConsultantProfile, User
 from .schemas import (ConsultantProfileOut, ProfileInput, ProfileUpdate,

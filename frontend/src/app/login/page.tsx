@@ -13,7 +13,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (getToken()) {
-      router.push('/profile');
+      router.push('/pipeline');
     }
   }, [router]);
 
@@ -24,7 +24,7 @@ export default function LoginPage() {
     try {
       const response = await login({ email, password });
       saveToken(response.access_token);
-      router.push('/profile');
+      router.push('/pipeline');
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {

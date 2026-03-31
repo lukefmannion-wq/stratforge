@@ -13,7 +13,7 @@ export default function SignupPage() {
 
   useEffect(() => {
     if (getToken()) {
-      router.push('/onboarding');
+      router.push('/pipeline');
     }
   }, [router]);
 
@@ -24,7 +24,7 @@ export default function SignupPage() {
     try {
       const response = await signup({ email, password });
       saveToken(response.access_token);
-      router.push('/onboarding');
+      router.push('/pipeline');
     } catch (err: any) {
       setError(err.message || 'Signup failed');
     } finally {

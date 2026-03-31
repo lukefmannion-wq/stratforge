@@ -41,6 +41,7 @@ def create_lead(
         contact_role=lead_in.contact_role,
         notes=lead_in.notes,
         status="Identified",
+        pipeline_stage="Identified",
     )
     db.add(lead)
     db.commit()
@@ -82,6 +83,7 @@ def list_leads(
     )
     for lead in leads:
         lead.outreach_count = len(lead.outreach_messages)
+        lead.proposal_count = len(lead.proposals)
     return leads
 
 
@@ -93,6 +95,7 @@ def get_lead(
 ):
     lead = _get_lead(current_user.id, lead_id, db)
     lead.outreach_count = len(lead.outreach_messages)
+    lead.proposal_count = len(lead.proposals)
     return lead
 
 
@@ -152,6 +155,7 @@ def import_leads(
             contact_role=row.get("contact_role", "").strip() or None,
             notes=row.get("notes", "").strip() or None,
             status="Identified",
+            pipeline_stage="Identified",
         )
         db.add(lead)
         db.commit()

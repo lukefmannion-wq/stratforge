@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, EmailStr
@@ -57,6 +57,9 @@ class LeadUpdate(BaseModel):
     contact_role: Optional[str] = None
     notes: Optional[str] = None
     status: Optional[str] = None
+    pipeline_stage: Optional[str] = None
+    deal_value: Optional[float] = None
+    expected_close_date: Optional[date] = None
     fit_score: Optional[str] = None
     signal_justification: Optional[str] = None
     enrichment_data: Optional[Dict[str, Any]] = None
@@ -68,8 +71,12 @@ class LeadOut(LeadBase):
     signal_justification: Optional[str] = None
     enrichment_data: Optional[Dict[str, Any]] = None
     status: str
+    pipeline_stage: str
+    deal_value: Optional[float] = None
+    expected_close_date: Optional[date] = None
     created_at: datetime
     outreach_count: int = 0
+    proposal_count: int = 0
 
     class Config:
         orm_mode = True
@@ -192,6 +199,46 @@ class ProposalUpdate(BaseModel):
     currency: Optional[str] = None
     status: Optional[str] = None
     notes: Optional[str] = None
+
+
+class PipelineStageUpdate(BaseModel):
+    new_stage: str
+
+
+class PipelineDealUpdate(BaseModel):
+    deal_value: Optional[float] = None
+    expected_close_date: Optional[date] = None
+
+
+class PipelineNoteCreate(BaseModel):
+    note: str
+
+
+class PipelineEventOut(BaseModel):
+    id: int
+    lead_id: int
+    event_type: str
+    from_stage: Optional[str] = None
+    to_stage: Optional[str] = None
+    note: Optional[str] = None
+    created_at: datetime
+    company_name: Optional[str] = None
+    contact_name: Optional[str] = None
+    contact_role: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+
+
+class PipelineMetrics(BaseModel):
+    total_leads: int
+    leads_by_stage: Dict[str, int]
+    lead_to_call_rate: float
+    call_to_close_rate: float
+    total_pipeline_value: float
+    closed_won_value: float
+    avg_deal_value: float
+    outreach_response_rate: float
 
 
 class ReanalyzeRequest(BaseModel):

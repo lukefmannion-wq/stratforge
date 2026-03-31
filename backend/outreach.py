@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from .auth import get_current_user
 from .database import get_db
-from .models import ConsultantProfile, Lead, OutreachMessage, User
+from .models import ConsultantProfile, Lead, OutreachMessage, PipelineEvent, User
 from .outreach_prompts import (cold_email_prompt, followup_prompt,
                                linkedin_prompt)
 from .schemas import (OutreachGenerateRequest, OutreachMessageOut,
@@ -287,6 +287,25 @@ def mark_message_sent(
     message = _get_message(current_user.id, message_id, db)
     message.status = "Sent"
     message.sent_at = datetime.utcnow()
+
+    lead = message.lead
+    if lead:
+        previous_stage = lead.pipeline_stage
+        if previous_stage == "Identified":
+            lead.pipeline_stage = "Outreach Sent"
+            lead.status = "Outreach Sent"
+        db.add(lead)
+        db.add(
+            PipelineEvent(
+                user_id=current_user.id,
+                lead_id=lead.id,
+                event_type="outreach_sent",
+                from_stage=previous_stage,
+                to_stage=lead.pipeline_stage,
+                created_at=datetime.utcnow(),
+            )
+        )
+
     db.commit()
     db.refresh(message)
     return message

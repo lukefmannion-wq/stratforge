@@ -2,7 +2,7 @@
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createLead, deleteLead, getLeads, importLeads, Lead, LeadCreate, reanalyzeLead, updateLead, getToken } from '@/lib/api';
+import { createLead, deleteLead, getLeads, importLeads, Lead, LeadCreate, reanalyzeLead, updateLead, updatePipelineStage, getToken } from '@/lib/api';
 
 const fitOrder: Record<string, number> = {
   High: 1,
@@ -17,6 +17,37 @@ const statusBadge = (score?: string | null) => {
   if (score === 'Low') return 'bg-rose-100 text-rose-800';
   return 'bg-zinc-100 text-zinc-700';
 };
+
+const stageBadge = (stage?: string | null) => {
+  switch (stage) {
+    case 'Identified':
+      return 'bg-slate-100 text-slate-700';
+    case 'Outreach Sent':
+      return 'bg-sky-100 text-sky-700';
+    case 'Replied':
+      return 'bg-emerald-100 text-emerald-800';
+    case 'Call Scheduled':
+      return 'bg-amber-100 text-amber-800';
+    case 'Proposal Sent':
+      return 'bg-violet-100 text-violet-800';
+    case 'Closed Won':
+      return 'bg-emerald-200 text-emerald-900';
+    case 'Closed Lost':
+      return 'bg-rose-100 text-rose-800';
+    default:
+      return 'bg-zinc-100 text-zinc-700';
+  }
+};
+
+const stageOptions = [
+  'Identified',
+  'Outreach Sent',
+  'Replied',
+  'Call Scheduled',
+  'Proposal Sent',
+  'Closed Won',
+  'Closed Lost',
+];
 
 const compareLeads = (a: Lead, b: Lead, field: string, direction: 'asc' | 'desc') => {
   const getValue = (lead: Lead) => {
@@ -59,6 +90,7 @@ export default function LeadsPage() {
   });
   const [filter, setFilter] = useState<'All' | 'High' | 'Medium' | 'Low'>('All');
   const [expandedIds, setExpandedIds] = useState<number[]>([]);
+  const [openStageDropdownFor, setOpenStageDropdownFor] = useState<number | null>(null);
   const [sortField, setSortField] = useState('fit_score');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -230,6 +262,30 @@ export default function LeadsPage() {
     );
   };
 
+  const handleStageChange = async (lead: Lead, newStage: string) => {
+    if (lead.pipeline_stage === newStage) {
+      setOpenStageDropdownFor(null);
+      return;
+    }
+    setError('');
+    setMessage('');
+    try {
+      await updatePipelineStage(lead.id, newStage);
+      setLeads((current) =>
+        current.map((item) =>
+          item.id === lead.id
+            ? { ...item, pipeline_stage: newStage, status: newStage === 'Closed Won' ? 'Won' : newStage === 'Closed Lost' ? 'Lost' : newStage }
+            : item,
+        ),
+      );
+      setMessage(`Stage updated to ${newStage}.`);
+    } catch (err: any) {
+      setError(err.message || 'Could not update stage.');
+    } finally {
+      setOpenStageDropdownFor(null);
+    }
+  };
+
   const downloadTemplate = () => {
     const csv =
       'company_name,company_website,contact_name,contact_role,notes\n' +
@@ -316,6 +372,7 @@ export default function LeadsPage() {
                       { label: 'Contact', key: 'contact' },
                       { label: 'Role', key: 'role' },
                       { label: 'Fit Score', key: 'fit_score' },
+                      { label: 'Stage', key: 'stage' },
                       { label: 'Signal', key: 'signal' },
                       { label: 'Status', key: 'status' },
                       { label: 'Actions', key: 'actions' },
@@ -373,6 +430,31 @@ export default function LeadsPage() {
                             Retry
                           </button>
                         ) : null}
+                      </td>
+                      <td className="px-4 py-4 text-zinc-700">
+                        <div className="relative inline-block">
+                          <button
+                            type="button"
+                            onClick={() => setOpenStageDropdownFor((current) => (current === lead.id ? null : lead.id))}
+                            className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${stageBadge(lead.pipeline_stage)}`}
+                          >
+                            {lead.pipeline_stage || 'Identified'}
+                          </button>
+                          {openStageDropdownFor === lead.id ? (
+                            <div className="absolute left-0 top-full z-20 mt-2 w-56 rounded-3xl border border-zinc-200 bg-white p-2 shadow-lg">
+                              {stageOptions.map((option) => (
+                                <button
+                                  key={option}
+                                  type="button"
+                                  onClick={() => handleStageChange(lead, option)}
+                                  className="block w-full rounded-2xl px-4 py-2 text-left text-sm text-zinc-700 transition hover:bg-slate-100"
+                                >
+                                  {option}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="max-w-xl px-4 py-4 text-zinc-700">{renderSignal(lead)}</td>
                       <td className="px-4 py-4 text-zinc-700">{lead.status}</td>

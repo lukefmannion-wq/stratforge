@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from .auth import get_current_user
 from .database import get_db
-from .models import ConsultantProfile, Lead, Proposal, User
+from .models import ConsultantProfile, Lead, PipelineEvent, Proposal, User
 from .proposal_prompts import proposal_prompt, sow_prompt
 from .schemas import (
     ProposalGenerateRequest,
@@ -261,6 +261,25 @@ def mark_proposal_sent(
     proposal.status = "Sent"
     proposal.sent_at = datetime.utcnow()
     proposal.updated_at = datetime.utcnow()
+
+    lead = proposal.lead
+    if lead:
+        previous_stage = lead.pipeline_stage
+        if previous_stage not in {"Proposal Sent", "Closed Won", "Closed Lost"}:
+            lead.pipeline_stage = "Proposal Sent"
+            lead.status = "Proposal Sent"
+        db.add(lead)
+        db.add(
+            PipelineEvent(
+                user_id=current_user.id,
+                lead_id=lead.id,
+                event_type="proposal_sent",
+                from_stage=previous_stage,
+                to_stage=lead.pipeline_stage,
+                created_at=datetime.utcnow(),
+            )
+        )
+
     db.commit()
     db.refresh(proposal)
     return _decorate_proposal(proposal)
