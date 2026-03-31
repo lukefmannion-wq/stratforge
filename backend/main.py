@@ -10,6 +10,7 @@ from .auth import (create_access_token, get_current_user, hash_password,
                    verify_password)
 from .database import Base, SessionLocal, engine, get_db
 from .leads import router as leads_router
+from .outreach import router as outreach_router
 from .models import ConsultantProfile, User
 from .schemas import (ConsultantProfileOut, ProfileInput, ProfileUpdate,
                       TokenResponse, UserCreate)
@@ -132,6 +133,7 @@ def generate_expertise(
 
 
 app.include_router(leads_router)
+app.include_router(outreach_router)
 
 
 @app.get("/api/expertise/profile", response_model=ConsultantProfileOut)

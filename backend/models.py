@@ -47,3 +47,22 @@ class Lead(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     user = relationship("User", back_populates="leads")
+    outreach_messages = relationship("OutreachMessage", back_populates="lead", cascade="all, delete-orphan")
+
+
+class OutreachMessage(Base):
+    __tablename__ = "outreach_messages"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    lead_id = Column(Integer, ForeignKey("leads.id"), nullable=False, index=True)
+    message_type = Column(String(50), nullable=False)
+    subject_line = Column(String(255), nullable=True)
+    body = Column(Text, nullable=False)
+    status = Column(String(50), nullable=False, default="Draft")
+    generated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    sent_at = Column(DateTime, nullable=True)
+    notes = Column(Text, nullable=True)
+
+    user = relationship("User")
+    lead = relationship("Lead", back_populates="outreach_messages")

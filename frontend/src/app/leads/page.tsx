@@ -346,7 +346,18 @@ export default function LeadsPage() {
                 <tbody className="divide-y divide-zinc-200 bg-white">
                   {filteredLeads.map((lead) => (
                     <tr key={lead.id} className="hover:bg-zinc-50">
-                      <td className="whitespace-nowrap px-4 py-4 font-medium text-zinc-900">{lead.company_name}</td>
+                      <td className="px-4 py-4 align-top">
+                        <div className="flex flex-col gap-2">
+                          <span className="whitespace-nowrap font-medium text-zinc-900">{lead.company_name}</span>
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/outreach?lead_id=${lead.id}`)}
+                            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-200"
+                          >
+                            {lead.outreach_count ?? 0}/5 outreach
+                          </button>
+                        </div>
+                      </td>
                       <td className="px-4 py-4 text-zinc-700">{lead.contact_name || '—'}</td>
                       <td className="px-4 py-4 text-zinc-700">{lead.contact_role || '—'}</td>
                       <td className="px-4 py-4">

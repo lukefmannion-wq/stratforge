@@ -69,6 +69,7 @@ class LeadOut(LeadBase):
     enrichment_data: Optional[Dict[str, Any]] = None
     status: str
     created_at: datetime
+    outreach_count: int = 0
 
     class Config:
         orm_mode = True
@@ -77,6 +78,57 @@ class LeadOut(LeadBase):
 class LeadImportResponse(BaseModel):
     imported: int
     processed: int
+
+
+class OutreachMessageBase(BaseModel):
+    lead_id: int
+    message_type: str
+    subject_line: Optional[str] = None
+    body: str
+    status: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class OutreachMessageCreate(OutreachMessageBase):
+    pass
+
+
+class OutreachMessageUpdate(BaseModel):
+    subject_line: Optional[str] = None
+    body: Optional[str] = None
+    status: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class OutreachMessageOut(BaseModel):
+    id: int
+    lead_id: int
+    message_type: str
+    subject_line: Optional[str] = None
+    body: str
+    status: str
+    generated_at: datetime
+    sent_at: Optional[datetime] = None
+    notes: Optional[str] = None
+    company_name: Optional[str] = None
+    contact_name: Optional[str] = None
+    contact_role: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+
+
+class OutreachGenerateRequest(BaseModel):
+    lead_id: int
+    message_type: str
+
+
+class OutreachSequenceRequest(BaseModel):
+    lead_id: int
+
+
+class OutreachSequenceResponse(BaseModel):
+    messages: List[OutreachMessageOut]
 
 
 class ReanalyzeRequest(BaseModel):

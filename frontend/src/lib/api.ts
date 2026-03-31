@@ -110,11 +110,75 @@ export interface Lead {
   enrichment_data?: Record<string, any> | null;
   status: string;
   created_at: string;
+  outreach_count?: number;
 }
 
 export interface LeadImportResponse {
   imported: number;
   processed: number;
+}
+
+export interface OutreachMessage {
+  id: number;
+  lead_id: number;
+  message_type: string;
+  subject_line?: string | null;
+  body: string;
+  status: string;
+  generated_at: string;
+  sent_at?: string | null;
+  notes?: string | null;
+}
+
+export interface OutreachGenerateRequest {
+  lead_id: number;
+  message_type: string;
+}
+
+export async function generateOutreach(payload: OutreachGenerateRequest) {
+  return apiFetch<OutreachMessage>("/outreach/generate", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export async function generateOutreachSequence(lead_id: number) {
+  return apiFetch<OutreachMessage[]>("/outreach/generate-sequence", {
+    method: "POST",
+    body: { lead_id },
+  });
+}
+
+export async function getOutreachMessages(lead_id?: number) {
+  const query = lead_id ? `?lead_id=${encodeURIComponent(lead_id)}` : "";
+  return apiFetch<OutreachMessage[]>(`/outreach${query}`, {
+    method: "GET",
+  });
+}
+
+export async function getOutreachMessage(id: number) {
+  return apiFetch<OutreachMessage>(`/outreach/${id}`, {
+    method: "GET",
+  });
+}
+
+export async function updateOutreachMessage(id: number, payload: Partial<Pick<OutreachMessage, 'subject_line' | 'body' | 'status' | 'notes'>>) {
+  return apiFetch<OutreachMessage>(`/outreach/${id}`, {
+    method: "PUT",
+    body: payload,
+  });
+}
+
+export async function deleteOutreachMessage(id: number) {
+  return apiFetch<{ detail: string }>(`/outreach/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function markOutreachSent(id: number) {
+  return apiFetch<OutreachMessage>(`/outreach/${id}/mark-sent`, {
+    method: "POST",
+  });
 }
 
 export async function getLeads() {

@@ -38,8 +38,11 @@ export default function RootLayout({
               <Link href="/profile" className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50">
                 Profile
               </Link>
-              <Link href="/leads" className="rounded-full bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-700">
+              <Link href="/leads" className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50">
                 Leads
+              </Link>
+              <Link href="/outreach" className="rounded-full bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-700">
+                Outreach
               </Link>
             </nav>
           </header>

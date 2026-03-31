@@ -4,7 +4,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy import case
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from .auth import get_current_user
 from .database import get_db
@@ -75,10 +75,13 @@ def list_leads(
     )
     leads = (
         db.query(Lead)
+        .options(selectinload(Lead.outreach_messages))
         .filter(Lead.user_id == current_user.id)
         .order_by(score_order, Lead.created_at.desc())
         .all()
     )
+    for lead in leads:
+        lead.outreach_count = len(lead.outreach_messages)
     return leads
 
 
@@ -88,7 +91,9 @@ def get_lead(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return _get_lead(current_user.id, lead_id, db)
+    lead = _get_lead(current_user.id, lead_id, db)
+    lead.outreach_count = len(lead.outreach_messages)
+    return lead
 
 
 @router.put("/{lead_id}", response_model=LeadOut)
