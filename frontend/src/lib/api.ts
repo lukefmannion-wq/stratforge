@@ -4,6 +4,13 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
 interface ApiOptions extends RequestInit {
   body?: any;
   responseType?: "json" | "text";
+  onUpgradeRequired?: (message: string) => void;
+}
+
+let upgradeRequiredCallback: ((message: string) => void) | null = null;
+
+export function registerUpgradeRequiredCallback(callback: (message: string) => void) {
+  upgradeRequiredCallback = callback;
 }
 
 async function apiFetch<T>(path: string, options: ApiOptions = {}): Promise<T> {
@@ -21,7 +28,7 @@ async function apiFetch<T>(path: string, options: ApiOptions = {}): Promise<T> {
     body = JSON.stringify(body);
   }
 
-  const { responseType = "json", ...fetchOptions } = options;
+  const { responseType = "json", onUpgradeRequired, ...fetchOptions } = options;
   const response = await fetch(`${BASE_URL}/api${path}`, {
     ...fetchOptions,
     headers,
@@ -33,6 +40,9 @@ async function apiFetch<T>(path: string, options: ApiOptions = {}): Promise<T> {
 
   if (!response.ok) {
     const message = (responseType === "json" ? (data as any)?.detail || (data as any)?.message : text) || "Request failed";
+    if (response.status === 403) {
+      (onUpgradeRequired || upgradeRequiredCallback)?.(message);
+    }
     throw new Error(message);
   }
 
@@ -152,6 +162,27 @@ export interface PipelineMetrics {
   closed_won_value: number;
   avg_deal_value: number;
   outreach_response_rate: number;
+}
+
+export interface BillingSubscription {
+  subscription_tier: string;
+  subscription_status: string;
+  subscription_current_period_end?: string | null;
+  is_free_plan: boolean;
+}
+
+export interface BillingCheckoutRequest {
+  tier: string;
+  success_url?: string;
+  cancel_url?: string;
+}
+
+export interface BillingPortalResponse {
+  url: string;
+}
+
+export interface BillingCheckoutResponse {
+  url: string;
 }
 
 export interface OutreachMessage {
@@ -361,6 +392,25 @@ export async function updatePipelineDeal(
 export async function getPipelineMetrics() {
   return apiFetch<PipelineMetrics>("/pipeline/metrics", {
     method: "GET",
+  });
+}
+
+export async function getBillingSubscription() {
+  return apiFetch<BillingSubscription>("/billing/subscription", {
+    method: "GET",
+  });
+}
+
+export async function createCheckoutSession(payload: BillingCheckoutRequest) {
+  return apiFetch<BillingCheckoutResponse>("/billing/create-checkout-session", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export async function createPortalSession() {
+  return apiFetch<BillingPortalResponse>("/billing/create-portal-session", {
+    method: "POST",
   });
 }
 

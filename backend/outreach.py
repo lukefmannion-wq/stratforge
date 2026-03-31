@@ -6,10 +6,12 @@ from typing import Any, List, Optional, Tuple
 import anthropic
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import extract
 from sqlalchemy.orm import Session, selectinload
 
 from .auth import get_current_user
 from .database import get_db
+from .feature_limits import check_limit, get_limits_for_tier
 from .models import ConsultantProfile, Lead, OutreachMessage, PipelineEvent, User
 from .outreach_prompts import (cold_email_prompt, followup_prompt,
                                linkedin_prompt)
@@ -179,6 +181,14 @@ def generate_outreach(
     if not profile:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Consultant profile is required for outreach generation.")
 
+    now = datetime.utcnow()
+    monthly_count = db.query(OutreachMessage).filter(
+        OutreachMessage.user_id == current_user.id,
+        extract("year", OutreachMessage.generated_at) == now.year,
+        extract("month", OutreachMessage.generated_at) == now.month,
+    ).count()
+    check_limit(current_user, "max_outreach_per_month", monthly_count)
+
     if request.message_type.startswith("followup"):
         normalized_type, sequence_number = _normalize_followup_type(request.message_type, current_user.id, lead.id, db)
         original_body = _get_cold_email_body(current_user.id, lead.id, db)
@@ -203,6 +213,22 @@ def generate_sequence(
     profile = _get_profile(current_user.id, db)
     if not profile:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Consultant profile is required for outreach generation.")
+
+    limits = get_limits_for_tier(current_user.subscription_tier)
+    if not limits["can_generate_sequence"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Your current plan does not allow full sequence generation. Upgrade to access this feature.")
+
+    now = datetime.utcnow()
+    monthly_count = db.query(OutreachMessage).filter(
+        OutreachMessage.user_id == current_user.id,
+        extract("year", OutreachMessage.generated_at) == now.year,
+        extract("month", OutreachMessage.generated_at) == now.month,
+    ).count()
+    if monthly_count + 5 > limits["max_outreach_per_month"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Generating a full sequence would exceed your monthly outreach limit of {limits['max_outreach_per_month']} messages. Upgrade to send more.",
+        )
 
     order = ["cold_email", "linkedin", "followup_1", "followup_2", "followup_3"]
     messages: List[OutreachMessage] = []

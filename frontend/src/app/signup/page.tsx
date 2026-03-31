@@ -2,10 +2,11 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { saveToken, signup, getToken } from '@/lib/api';
+import { saveToken, signup, getToken, createCheckoutSession } from '@/lib/api';
 
 export default function SignupPage() {
   const router = useRouter();
+  const [plan, setPlan] = useState<string | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -14,6 +15,15 @@ export default function SignupPage() {
   useEffect(() => {
     if (getToken()) {
       router.push('/pipeline');
+      return;
+    }
+
+    if (typeof window !== 'undefined') {
+      const query = new URLSearchParams(window.location.search);
+      const requestedPlan = query.get('plan');
+      if (requestedPlan && ['solo', 'growth', 'agency'].includes(requestedPlan)) {
+        setPlan(requestedPlan);
+      }
     }
   }, [router]);
 
@@ -24,6 +34,15 @@ export default function SignupPage() {
     try {
       const response = await signup({ email, password });
       saveToken(response.access_token);
+      if (plan && ['solo', 'growth', 'agency'].includes(plan)) {
+        const session = await createCheckoutSession({
+          tier: plan,
+          success_url: `${window.location.origin}/pipeline`,
+          cancel_url: `${window.location.origin}/pricing`,
+        });
+        window.location.href = session.url;
+        return;
+      }
       router.push('/pipeline');
     } catch (err: any) {
       setError(err.message || 'Signup failed');

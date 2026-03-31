@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, selectinload
 from .auth import get_current_user
 from .database import get_db
 from .enrichment import enrich_and_score_lead
+from .feature_limits import check_limit, get_limits_for_tier
 from .models import ConsultantProfile, Lead, User
 from .schemas import (LeadCreate, LeadImportResponse, LeadOut, LeadUpdate,
                       ReanalyzeRequest)
@@ -33,6 +34,9 @@ def create_lead(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    existing_lead_count = db.query(Lead).filter(Lead.user_id == current_user.id).count()
+    check_limit(current_user, "max_leads", existing_lead_count)
+
     lead = Lead(
         user_id=current_user.id,
         company_name=lead_in.company_name,
@@ -139,14 +143,29 @@ def import_leads(
 
     content = file.file.read().decode("utf-8-sig")
     reader = csv.DictReader(io.StringIO(content))
+    rows = [row for row in reader if row.get("company_name")]
     profile = _get_profile(current_user.id, db)
     imported = 0
-    processed = 0
+    processed = len(rows)
 
-    for row in reader:
-        processed += 1
-        if not row.get("company_name"):
-            continue
+    limits = get_limits_for_tier(current_user.subscription_tier)
+    if not limits["can_import_csv"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Your current plan does not allow CSV import. Upgrade to import leads.")
+
+    existing_lead_count = db.query(Lead).filter(Lead.user_id == current_user.id).count()
+    available_space = limits["max_leads"] - existing_lead_count
+    if available_space <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"You have reached the {limits['max_leads']} lead limit on the {current_user.subscription_tier} plan. Upgrade to add more leads.",
+        )
+    if processed > available_space:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Import would exceed your lead limit by {processed - available_space} leads. Upgrade to import more leads.",
+        )
+
+    for row in rows:
         lead = Lead(
             user_id=current_user.id,
             company_name=row.get("company_name", "").strip(),

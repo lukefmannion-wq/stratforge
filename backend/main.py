@@ -13,6 +13,7 @@ from .leads import router as leads_router
 from .outreach import router as outreach_router
 from .pipeline import router as pipeline_router
 from .proposals import router as proposals_router
+from .billing import router as billing_router
 from .models import ConsultantProfile, User
 from .schemas import (ConsultantProfileOut, ProfileInput, ProfileUpdate,
                       TokenResponse, UserCreate)
@@ -140,6 +141,8 @@ def generate_expertise(
 app.include_router(leads_router)
 app.include_router(outreach_router)
 app.include_router(proposals_router)
+app.include_router(pipeline_router)
+app.include_router(billing_router)
 
 
 @app.get("/api/expertise/profile", response_model=ConsultantProfileOut)

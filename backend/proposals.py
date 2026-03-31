@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from .auth import get_current_user
 from .database import get_db
+from .feature_limits import check_limit
 from .models import ConsultantProfile, Lead, PipelineEvent, Proposal, User
 from .proposal_prompts import proposal_prompt, sow_prompt
 from .schemas import (
@@ -158,6 +159,9 @@ def generate_proposal(
     profile = _get_profile(current_user.id, db)
     if not profile:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Consultant profile is required for proposal generation.")
+
+    existing_proposal_count = db.query(Proposal).filter(Proposal.user_id == current_user.id).count()
+    check_limit(current_user, "max_proposals", existing_proposal_count)
 
     result = _generate_proposal(profile, lead, payload)
     return _create_proposal(current_user, lead, result, payload, db)

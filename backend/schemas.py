@@ -230,6 +230,30 @@ class PipelineEventOut(BaseModel):
         orm_mode = True
 
 
+class BillingCreateCheckoutRequest(BaseModel):
+    tier: str
+    success_url: Optional[str] = None
+    cancel_url: Optional[str] = None
+
+
+class BillingCheckoutResponse(BaseModel):
+    url: str
+
+
+class BillingPortalResponse(BaseModel):
+    url: str
+
+
+class BillingSubscriptionOut(BaseModel):
+    subscription_tier: str
+    subscription_status: str
+    subscription_current_period_end: Optional[datetime] = None
+    is_free_plan: bool
+
+    class Config:
+        orm_mode = True
+
+
 class PipelineMetrics(BaseModel):
     total_leads: int
     leads_by_stage: Dict[str, int]

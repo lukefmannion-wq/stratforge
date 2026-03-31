@@ -10,6 +10,12 @@ class User(Base):
     id = Column(Integer, primary_key=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
     hashed_password = Column(String, nullable=False)
+    subscription_tier = Column(String(50), nullable=False, default="free")
+    subscription_status = Column(String(50), nullable=False, default="active")
+    stripe_customer_id = Column(String(255), nullable=True)
+    stripe_subscription_id = Column(String(255), nullable=True)
+    subscription_current_period_end = Column(DateTime, nullable=True)
+    trial_ends_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     consultant_profile = relationship("ConsultantProfile", back_populates="user", uselist=False)
