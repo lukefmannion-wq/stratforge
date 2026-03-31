@@ -36,3 +36,48 @@ class ConsultantProfileOut(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class LeadBase(BaseModel):
+    company_name: str
+    company_website: Optional[str] = None
+    contact_name: Optional[str] = None
+    contact_role: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class LeadCreate(LeadBase):
+    pass
+
+
+class LeadUpdate(BaseModel):
+    company_name: Optional[str] = None
+    company_website: Optional[str] = None
+    contact_name: Optional[str] = None
+    contact_role: Optional[str] = None
+    notes: Optional[str] = None
+    status: Optional[str] = None
+    fit_score: Optional[str] = None
+    signal_justification: Optional[str] = None
+    enrichment_data: Optional[Dict[str, Any]] = None
+
+
+class LeadOut(LeadBase):
+    id: int
+    fit_score: Optional[str] = None
+    signal_justification: Optional[str] = None
+    enrichment_data: Optional[Dict[str, Any]] = None
+    status: str
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+
+
+class LeadImportResponse(BaseModel):
+    imported: int
+    processed: int
+
+
+class ReanalyzeRequest(BaseModel):
+    re_analyze: bool = False

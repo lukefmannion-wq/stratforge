@@ -11,8 +11,11 @@ from dotenv import load_dotenv
 # Add the backend root directory to sys.path so local modules can be imported.
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(parent_dir)
+root_dir = os.path.abspath(os.path.join(parent_dir, ".."))
+sys.path.append(root_dir)
 
-from database import Base
+from backend.database import Base
+import backend.models  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -33,6 +36,7 @@ if DATABASE_URL:
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
+
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
