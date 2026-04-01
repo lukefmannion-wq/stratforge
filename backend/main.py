@@ -24,6 +24,7 @@ from .billing import router as billing_router
 from .models import ConsultantProfile, Lead, OutreachMessage, User
 from .schemas import (ConsultantProfileOut, ProfileInput, ProfileUpdate,
                       TokenResponse, UserCreate, OnboardingStatus)
+from .emails import send_welcome_email
 from fastapi.templating import Jinja2Templates
 
 load_dotenv()
@@ -115,6 +116,7 @@ def signup(request: Request, user_create: UserCreate, db: Session = Depends(get_
         db.add(user)
         db.commit()
         db.refresh(user)
+        send_welcome_email(user.email, getattr(user, "full_name", None))
     except HTTPException:
         raise
     except SQLAlchemyError:

@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session, selectinload
 from .auth import get_current_user
 from .database import get_db
 from .feature_limits import check_limit
+from .emails import send_proposal_sent_notification
 from .models import ConsultantProfile, Lead, PipelineEvent, Proposal, User
 from .proposal_prompts import proposal_prompt, sow_prompt
 from .schemas import (
@@ -328,6 +329,13 @@ def mark_proposal_sent(
     except SQLAlchemyError:
         db.rollback()
         raise HTTPException(status_code=500, detail="Database error — please try again")
+
+    send_proposal_sent_notification(
+        current_user.email,
+        proposal.lead.company_name if proposal.lead else "Unknown Company",
+        proposal.title,
+    )
+
     return _decorate_proposal(proposal)
 
 

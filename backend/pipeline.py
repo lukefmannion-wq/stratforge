@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from .auth import get_current_user
 from .database import get_db
+from .emails import send_deal_won_notification
 from .models import Lead, PipelineEvent, User
 from .schemas import (
     PipelineDealUpdate,
@@ -131,6 +132,13 @@ def update_pipeline_stage(
             to_stage=to_stage,
             db=db,
         )
+
+        if to_stage == "Closed Won" and lead.deal_value is not None:
+            send_deal_won_notification(
+                user.email,
+                lead.company_name,
+                lead.deal_value,
+            )
     try:
         db.refresh(lead)
     except SQLAlchemyError:
