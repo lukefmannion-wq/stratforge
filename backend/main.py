@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import datetime, timezone
 
 import anthropic
 from dotenv import load_dotenv
@@ -254,6 +255,14 @@ def update_expertise_profile(
 @app.get("/")
 def read_root():
     return {"message": "StratForge API is running"}
+
+
+@app.get("/api/health")
+def health_check():
+    return {
+        "status": "ok",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 @app.get("/api/onboarding/status", response_model=OnboardingStatus)

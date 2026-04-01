@@ -1,8 +1,9 @@
 import csv
 import io
+import math
 from typing import List
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import case
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
@@ -12,8 +13,8 @@ from .database import get_db
 from .enrichment import enrich_and_score_lead
 from .feature_limits import check_limit, get_limits_for_tier
 from .models import ConsultantProfile, Lead, User
-from .schemas import (LeadCreate, LeadImportResponse, LeadOut, LeadUpdate,
-                      ReanalyzeRequest)
+from .schemas import (LeadCreate, LeadImportResponse, LeadOut,
+                      LeadUpdate, PaginatedLeadResponse, ReanalyzeRequest)
 
 router = APIRouter(prefix="/api/leads", tags=["leads"])
 
@@ -76,33 +77,41 @@ def create_lead(
     return lead
 
 
-@router.get("", response_model=List[LeadOut])
+@router.get("", response_model=PaginatedLeadResponse)
 def list_leads(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     score_order = case(
-        (
-            (Lead.fit_score == "High", 1),
-            (Lead.fit_score == "Medium", 2),
-            (Lead.fit_score == "Low", 3),
-        ),
+        (Lead.fit_score == "High", 1),
+        (Lead.fit_score == "Medium", 2),
+        (Lead.fit_score == "Low", 3),
         else_=4,
     )
     try:
-        leads = (
+        query = (
             db.query(Lead)
             .options(selectinload(Lead.outreach_messages))
             .filter(Lead.user_id == current_user.id)
             .order_by(score_order, Lead.created_at.desc())
-            .all()
         )
+        total = query.count()
+        leads = query.offset((page - 1) * page_size).limit(page_size).all()
     except SQLAlchemyError:
         raise HTTPException(status_code=500, detail="Database error — please try again")
     for lead in leads:
         lead.outreach_count = len(lead.outreach_messages)
         lead.proposal_count = len(lead.proposals)
-    return leads
+    total_pages = math.ceil(total / page_size) if total else 0
+    return {
+        "items": leads,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": total_pages,
+    }
 
 
 @router.get("/{lead_id}", response_model=LeadOut)

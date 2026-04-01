@@ -95,6 +95,14 @@ export interface OnboardingStatus {
   has_outreach: boolean;
 }
 
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
 export async function signup(payload: AuthPayload) {
   return apiFetch<{ access_token: string; token_type: string }>("/auth/signup", {
     method: "POST",
@@ -298,6 +306,21 @@ export interface OutreachGenerateRequest {
   message_type: string;
 }
 
+async function collectPaginatedItems<T>(
+  fetchPage: (page: number, pageSize: number) => Promise<PaginatedResponse<T>>,
+): Promise<T[]> {
+  const firstPage = await fetchPage(1, 100);
+  if (firstPage.total_pages <= 1) {
+    return firstPage.items;
+  }
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: firstPage.total_pages - 1 }, (_, index) => fetchPage(index + 2, 100)),
+  );
+
+  return [firstPage, ...remainingPages].flatMap((page) => page.items);
+}
+
 export async function generateOutreach(payload: OutreachGenerateRequest) {
   return apiFetch<OutreachMessage>("/outreach/generate", {
     method: "POST",
@@ -312,11 +335,22 @@ export async function generateOutreachSequence(lead_id: number) {
   });
 }
 
-export async function getOutreachMessages(lead_id?: number) {
-  const query = lead_id ? `?lead_id=${encodeURIComponent(lead_id)}` : "";
-  return apiFetch<OutreachMessage[]>(`/outreach${query}`, {
+export async function getOutreachMessagesPage(options: { lead_id?: number; page?: number; page_size?: number } = {}) {
+  const params = new URLSearchParams();
+  if (options.lead_id !== undefined) {
+    params.set("lead_id", String(options.lead_id));
+  }
+  params.set("page", String(options.page ?? 1));
+  params.set("page_size", String(options.page_size ?? 20));
+  return apiFetch<PaginatedResponse<OutreachMessage>>(`/outreach?${params.toString()}`, {
     method: "GET",
   });
+}
+
+export async function getOutreachMessages(lead_id?: number) {
+  return collectPaginatedItems((page, pageSize) =>
+    getOutreachMessagesPage({ lead_id, page, page_size: pageSize }),
+  );
 }
 
 export async function getOutreachMessage(id: number) {
@@ -466,10 +500,18 @@ export async function addPipelineNote(lead_id: number, note: string) {
   });
 }
 
-export async function getLeads() {
-  return apiFetch<Lead[]>("/leads", {
+export async function getLeadsPage(page = 1, page_size = 20) {
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(page_size),
+  });
+  return apiFetch<PaginatedResponse<Lead>>(`/leads?${params.toString()}`, {
     method: "GET",
   });
+}
+
+export async function getLeads() {
+  return collectPaginatedItems((page, pageSize) => getLeadsPage(page, pageSize));
 }
 
 export async function getLead(id: number) {

@@ -87,6 +87,14 @@ class LeadImportResponse(BaseModel):
     processed: int
 
 
+class PaginatedLeadResponse(BaseModel):
+    items: List[LeadOut]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
 class OutreachMessageBase(BaseModel):
     lead_id: int
     message_type: str
@@ -136,6 +144,14 @@ class OutreachSequenceRequest(BaseModel):
 
 class OutreachSequenceResponse(BaseModel):
     messages: List[OutreachMessageOut]
+
+
+class PaginatedOutreachResponse(BaseModel):
+    items: List[OutreachMessageOut]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
 
 
 class ProposalPhase(BaseModel):

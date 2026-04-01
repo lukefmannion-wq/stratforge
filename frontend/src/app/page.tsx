@@ -1,4 +1,10 @@
 import Link from 'next/link';
+import { buildPageMetadata } from '@/lib/metadata';
+
+export const metadata = buildPageMetadata(
+  'Home',
+  'Launch StratForge Growth to build your consultant profile, target leads, and start outbound execution.',
+);
 
 export default function Home() {
   return (

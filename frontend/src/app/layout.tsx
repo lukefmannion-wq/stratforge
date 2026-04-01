@@ -16,8 +16,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "StratForge Growth",
-  description: "AI-powered lead identification for consultants.",
+  title: {
+    default: "StratForge Growth",
+    template: "%s — StratForge Growth",
+  },
+  description: "AI-powered pipeline building, outreach, and proposals for consultants.",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

@@ -1,6 +1,7 @@
 import json
 import os
 from datetime import datetime
+import math
 from typing import Any, List, Optional, Tuple
 
 import anthropic
@@ -17,7 +18,8 @@ from .models import ConsultantProfile, Lead, OutreachMessage, PipelineEvent, Use
 from .outreach_prompts import (cold_email_prompt, followup_prompt,
                                linkedin_prompt)
 from .schemas import (OutreachGenerateRequest, OutreachMessageOut,
-                      OutreachMessageUpdate, OutreachSequenceRequest)
+                      OutreachMessageUpdate, OutreachSequenceRequest,
+                      PaginatedOutreachResponse)
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
@@ -285,9 +287,11 @@ def generate_sequence(
     return messages
 
 
-@router.get("", response_model=List[OutreachMessageOut])
+@router.get("", response_model=PaginatedOutreachResponse)
 def list_outreach(
     lead_id: Optional[int] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -299,10 +303,18 @@ def list_outreach(
         )
         if lead_id is not None:
             query = query.filter(OutreachMessage.lead_id == lead_id)
-        messages = query.order_by(OutreachMessage.generated_at.desc()).all()
+        total = query.count()
+        messages = query.order_by(OutreachMessage.generated_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
     except SQLAlchemyError:
         raise HTTPException(status_code=500, detail="Database error — please try again")
-    return [_decorate_message(message) for message in messages]
+    total_pages = math.ceil(total / page_size) if total else 0
+    return {
+        "items": [_decorate_message(message) for message in messages],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": total_pages,
+    }
 
 
 @router.get("/{message_id}", response_model=OutreachMessageOut)

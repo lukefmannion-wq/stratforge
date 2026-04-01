@@ -3,8 +3,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Skeleton } from '@/components/Skeleton';
 import { getProposals, getToken } from '@/lib/api';
 import type { Proposal } from '@/lib/api';
+
+const MIN_SKELETON_DELAY_MS = 250;
 
 const statuses = ['All', 'Draft', 'Sent', 'Accepted', 'Declined'] as const;
 const statusClasses: Record<string, string> = {
@@ -36,6 +39,7 @@ export default function ProposalsPage() {
   }, [router]);
 
   const fetchProposals = async () => {
+    const startedAt = Date.now();
     setLoading(true);
     setError('');
     try {
@@ -44,6 +48,10 @@ export default function ProposalsPage() {
     } catch (err: any) {
       setError(err.message || 'Could not load proposals.');
     } finally {
+      const remainingDelay = MIN_SKELETON_DELAY_MS - (Date.now() - startedAt);
+      if (remainingDelay > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, remainingDelay));
+      }
       setLoading(false);
     }
   };
@@ -98,7 +106,32 @@ export default function ProposalsPage() {
 
         <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm overflow-x-auto">
           {loading ? (
-            <div className="flex items-center justify-center py-20 text-sm text-zinc-500">Loading proposals...</div>
+            <table className="min-w-full divide-y divide-zinc-200 text-left text-sm">
+              <thead className="bg-zinc-50 text-zinc-700">
+                <tr>
+                  {['Lead Company', 'Contact', 'Type', 'Title', 'Total Value', 'Status', 'Version', 'Created', 'Updated'].map((header) => (
+                    <th key={header} className="whitespace-nowrap px-4 py-3 font-semibold">
+                      {header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-200 bg-white">
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <tr key={index}>
+                    <td className="px-4 py-4"><Skeleton className="h-5 w-28" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-5 w-24" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-5 w-20" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-5 w-44" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-5 w-20" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-6 w-20 rounded-full" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-5 w-10" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-5 w-24" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-5 w-24" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           ) : filteredProposals.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center text-sm text-zinc-500">
               <p>No proposals found for this filter.</p>

@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Allow: /pricing
+Allow: /login
+Allow: /signup
+Disallow: /pipeline
+Disallow: /leads
+Disallow: /proposals
+Disallow: /outreach
+Disallow: /settings

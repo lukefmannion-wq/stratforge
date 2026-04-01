@@ -2,7 +2,11 @@
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createLead, deleteLead, getLeads, importLeads, Lead, LeadCreate, reanalyzeLead, updateLead, updatePipelineStage, getToken } from '@/lib/api';
+import PaginationControls from '@/components/PaginationControls';
+import { Skeleton } from '@/components/Skeleton';
+import { createLead, deleteLead, getLeadsPage, importLeads, Lead, LeadCreate, reanalyzeLead, updateLead, updatePipelineStage, getToken } from '@/lib/api';
+
+const MIN_SKELETON_DELAY_MS = 250;
 
 const fitOrder: Record<string, number> = {
   High: 1,
@@ -93,6 +97,10 @@ export default function LeadsPage() {
   const [openStageDropdownFor, setOpenStageDropdownFor] = useState<number | null>(null);
   const [sortField, setSortField] = useState('fit_score');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -100,18 +108,27 @@ export default function LeadsPage() {
       router.push('/login');
       return;
     }
-    fetchLeads();
-  }, [router]);
+    fetchLeads(page);
+  }, [page, router]);
 
-  const fetchLeads = async () => {
+  const fetchLeads = async (nextPage = page) => {
+    const startedAt = Date.now();
     setLoading(true);
     setError('');
     try {
-      const data = await getLeads();
-      setLeads(data);
+      const data = await getLeadsPage(nextPage, 20);
+      setLeads(data.items);
+      setPage(data.page);
+      setPageSize(data.page_size);
+      setTotal(data.total);
+      setTotalPages(data.total_pages);
     } catch (err: any) {
       setError(err.message || 'Could not load leads.');
     } finally {
+      const remainingDelay = MIN_SKELETON_DELAY_MS - (Date.now() - startedAt);
+      if (remainingDelay > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, remainingDelay));
+      }
       setLoading(false);
     }
   };
@@ -161,7 +178,7 @@ export default function LeadsPage() {
         await createLead(form);
         setMessage('Company added and analyzed.');
       }
-      await fetchLeads();
+      await fetchLeads(page);
       closePanel();
     } catch (err: any) {
       setError(err.message || 'Could not save the lead.');
@@ -178,7 +195,11 @@ export default function LeadsPage() {
     try {
       await deleteLead(lead.id);
       setMessage('Lead deleted successfully.');
-      await fetchLeads();
+      if (leads.length === 1 && page > 1) {
+        setPage(page - 1);
+      } else {
+        await fetchLeads(page);
+      }
     } catch (err: any) {
       setError(err.message || 'Could not delete lead.');
     }
@@ -199,7 +220,7 @@ export default function LeadsPage() {
     try {
       const response = await importLeads(file);
       setMessage(`${response.imported} companies imported successfully.`);
-      await fetchLeads();
+      await fetchLeads(page);
     } catch (err: any) {
       setError(err.message || 'Could not import leads.');
     } finally {
@@ -216,7 +237,7 @@ export default function LeadsPage() {
     try {
       await reanalyzeLead(lead.id);
       setMessage('Lead re-analysis complete.');
-      await fetchLeads();
+      await fetchLeads(page);
     } catch (err: any) {
       setError(err.message || 'Could not re-analyze the lead.');
     }
@@ -356,7 +377,35 @@ export default function LeadsPage() {
 
         <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
           {loading ? (
-            <div className="flex items-center justify-center py-20 text-sm text-zinc-500">Loading leads...</div>
+            <div className="space-y-4">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-zinc-200 text-left text-sm">
+                  <thead className="bg-zinc-50 text-zinc-700">
+                    <tr>
+                      {['Company', 'Contact', 'Role', 'Fit Score', 'Stage', 'Signal', 'Status', 'Actions'].map((header) => (
+                        <th key={header} className="whitespace-nowrap px-4 py-3 font-semibold">
+                          {header}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-200 bg-white">
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <tr key={index}>
+                        <td className="px-4 py-4"><Skeleton className="h-5 w-32" /></td>
+                        <td className="px-4 py-4"><Skeleton className="h-5 w-24" /></td>
+                        <td className="px-4 py-4"><Skeleton className="h-5 w-28" /></td>
+                        <td className="px-4 py-4"><Skeleton className="h-6 w-20 rounded-full" /></td>
+                        <td className="px-4 py-4"><Skeleton className="h-6 w-24 rounded-full" /></td>
+                        <td className="px-4 py-4"><Skeleton className="h-5 w-56" /></td>
+                        <td className="px-4 py-4"><Skeleton className="h-5 w-20" /></td>
+                        <td className="px-4 py-4"><Skeleton className="h-10 w-44" /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           ) : filteredLeads.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center text-sm text-zinc-500">
               <p>No leads found yet.</p>
@@ -489,6 +538,17 @@ export default function LeadsPage() {
               </table>
             </div>
           )}
+
+          {!loading && total > 0 ? (
+            <PaginationControls
+              page={page}
+              pageSize={pageSize}
+              total={total}
+              totalPages={totalPages}
+              itemCount={leads.length}
+              onPageChange={setPage}
+            />
+          ) : null}
         </div>
       </div>
 

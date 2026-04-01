@@ -50,3 +50,18 @@ body {
   transition: width 120ms ease-out, opacity 220ms ease-out;
   animation: none;
 }
+
+@keyframes sf-skeleton-pulse {
+  0% {
+    background-color: #e4e4e7;
+  }
+  100% {
+    background-color: #f4f4f5;
+  }
+}
+
+.sf-skeleton {
+  animation: sf-skeleton-pulse 1.1s ease-in-out infinite alternate;
+  background-color: #e4e4e7;
+  border-radius: 1rem;
+}

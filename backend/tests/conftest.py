@@ -91,10 +91,10 @@ def mock_external_generation(monkeypatch: pytest.MonkeyPatch):
             "total_price": sum(item["total"] for item in pricing_table),
         }
 
-    def compat_case(whens, else_=None):
-        if isinstance(whens, (list, tuple)):
-            return sa_case(*whens, else_=else_)
-        return sa_case(whens, else_=else_)
+    def compat_case(*whens, else_=None):
+        if len(whens) == 1 and isinstance(whens[0], (list, tuple)) and whens and whens[0] and isinstance(whens[0][0], tuple):
+            return sa_case(*whens[0], else_=else_)
+        return sa_case(*whens, else_=else_)
 
     monkeypatch.setattr("backend.main.hash_password", fake_hash_password)
     monkeypatch.setattr("backend.main.verify_password", fake_verify_password)

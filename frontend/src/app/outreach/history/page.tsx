@@ -3,8 +3,12 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getOutreachMessages, getToken } from '@/lib/api';
+import PaginationControls from '@/components/PaginationControls';
+import { Skeleton } from '@/components/Skeleton';
+import { getOutreachMessagesPage, getToken } from '@/lib/api';
 import type { OutreachMessage } from '@/lib/api';
+
+const MIN_SKELETON_DELAY_MS = 250;
 
 const filters = ['All', 'Draft', 'Sent', 'Replied'] as const;
 const labelMap: Record<string, string> = {
@@ -21,24 +25,37 @@ export default function OutreachHistoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<typeof filters[number]>('All');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
   useEffect(() => {
     if (!getToken()) {
       router.push('/login');
       return;
     }
-    fetchHistory();
-  }, [router]);
+    fetchHistory(page);
+  }, [page, router]);
 
-  const fetchHistory = async () => {
+  const fetchHistory = async (nextPage = page) => {
+    const startedAt = Date.now();
     setLoading(true);
     setError('');
     try {
-      const data = await getOutreachMessages();
-      setMessages(data);
+      const data = await getOutreachMessagesPage({ page: nextPage, page_size: 20 });
+      setMessages(data.items);
+      setPage(data.page);
+      setPageSize(data.page_size);
+      setTotal(data.total);
+      setTotalPages(data.total_pages);
     } catch (err: any) {
       setError(err.message || 'Could not load outreach history.');
     } finally {
+      const remainingDelay = MIN_SKELETON_DELAY_MS - (Date.now() - startedAt);
+      if (remainingDelay > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, remainingDelay));
+      }
       setLoading(false);
     }
   };
@@ -82,7 +99,32 @@ export default function OutreachHistoryPage() {
 
         <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
           {loading ? (
-            <div className="flex items-center justify-center py-20 text-sm text-zinc-500">Loading outreach history...</div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-zinc-200 text-left text-sm">
+                <thead className="bg-zinc-50 text-zinc-700">
+                  <tr>
+                    {['Company', 'Contact', 'Type', 'Subject', 'Status', 'Generated', 'Sent'].map((header) => (
+                      <th key={header} className="whitespace-nowrap px-4 py-3 font-semibold">
+                        {header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-200 bg-white">
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <tr key={index}>
+                      <td className="px-4 py-4"><Skeleton className="h-5 w-28" /></td>
+                      <td className="px-4 py-4"><Skeleton className="h-5 w-24" /></td>
+                      <td className="px-4 py-4"><Skeleton className="h-5 w-20" /></td>
+                      <td className="px-4 py-4"><Skeleton className="h-5 w-40" /></td>
+                      <td className="px-4 py-4"><Skeleton className="h-5 w-16" /></td>
+                      <td className="px-4 py-4"><Skeleton className="h-5 w-24" /></td>
+                      <td className="px-4 py-4"><Skeleton className="h-5 w-24" /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : filteredMessages.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center text-sm text-zinc-500">
               <p>No outreach messages match this filter.</p>
@@ -120,6 +162,17 @@ export default function OutreachHistoryPage() {
               </table>
             </div>
           )}
+
+          {!loading && total > 0 ? (
+            <PaginationControls
+              page={page}
+              pageSize={pageSize}
+              total={total}
+              totalPages={totalPages}
+              itemCount={messages.length}
+              onPageChange={setPage}
+            />
+          ) : null}
         </div>
       </div>
     </div>

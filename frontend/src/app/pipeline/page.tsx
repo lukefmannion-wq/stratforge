@@ -31,6 +31,9 @@ import {
   updatePipelineStage,
   getToken,
 } from '@/lib/api';
+import { Skeleton } from '@/components/Skeleton';
+
+const MIN_SKELETON_DELAY_MS = 250;
 
 const stageOrder = [
   'Identified',
@@ -166,6 +169,7 @@ function StageColumn({
 
 export default function PipelinePage() {
   const router = useRouter();
+  const [loading, setLoading] = useState(true);
   const [pipelineGroups, setPipelineGroups] = useState<Record<string, PipelineLead[]>>(
     Object.fromEntries(stageOrder.map((stage) => [stage, []])) as Record<string, PipelineLead[]>,
   );
@@ -186,8 +190,7 @@ export default function PipelinePage() {
       router.push('/login');
       return;
     }
-    fetchPipeline();
-    fetchMetrics();
+    loadDashboard();
   }, [router]);
 
   useEffect(() => {
@@ -196,13 +199,22 @@ export default function PipelinePage() {
     }
   }, [selectedLead]);
 
-  const fetchPipeline = async () => {
+  const loadDashboard = async () => {
+    const startedAt = Date.now();
+    setLoading(true);
     setError('');
     try {
-      const data = await getPipeline();
-      setPipelineGroups(Object.fromEntries(stageOrder.map((stage) => [stage, data[stage] ?? []])));
+      const [pipelineData, metricsData] = await Promise.all([getPipeline(), getPipelineMetrics()]);
+      setPipelineGroups(Object.fromEntries(stageOrder.map((stage) => [stage, pipelineData[stage] ?? []])));
+      setMetrics(metricsData);
     } catch (err: any) {
       setError(err.message || 'Could not load pipeline.');
+    } finally {
+      const remainingDelay = MIN_SKELETON_DELAY_MS - (Date.now() - startedAt);
+      if (remainingDelay > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, remainingDelay));
+      }
+      setLoading(false);
     }
   };
 
@@ -371,7 +383,9 @@ export default function PipelinePage() {
               <div key={card.key} className="rounded-3xl border border-zinc-200 bg-slate-50 p-5 shadow-sm">
                 <p className="text-sm text-zinc-500">{card.label}</p>
                 <p className="mt-4 text-3xl font-semibold text-slate-900">
-                  {metrics ? (
+                  {loading ? (
+                    <Skeleton className="h-10 w-28" />
+                  ) : metrics ? (
                     card.key === 'total_pipeline_value' || card.key === 'closed_won_value'
                       ? formatCurrency(metrics[card.key])
                       : card.key === 'lead_to_call_rate' || card.key === 'call_to_close_rate' || card.key === 'outreach_response_rate'
@@ -410,7 +424,29 @@ export default function PipelinePage() {
             </div>
           </div>
 
-          {totalLeads === 0 ? (
+          {loading ? (
+            <div className="mt-6 overflow-x-auto">
+              <div className="flex min-w-[1400px] gap-4">
+                {stageOrder.map((stage) => (
+                  <div key={stage} className="min-w-[280px] rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
+                    <div className="mb-4 space-y-2">
+                      <Skeleton className="h-5 w-28" />
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                    <div className="space-y-3">
+                      {Array.from({ length: 3 }).map((_, index) => (
+                        <div key={index} className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
+                          <Skeleton className="h-5 w-32" />
+                          <Skeleton className="mt-3 h-4 w-24" />
+                          <Skeleton className="mt-4 h-20 w-full" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : totalLeads === 0 ? (
             <div className="mt-6 flex flex-col items-center justify-center rounded-3xl border border-dashed border-zinc-300 bg-zinc-50 px-6 py-16 text-center">
               <svg width="180" height="120" viewBox="0 0 180 120" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                 <rect x="20" y="18" width="140" height="20" rx="10" fill="#dbeafe" stroke="#93c5fd" />

@@ -47,7 +47,7 @@ def test_get_all_leads_returns_sorted_list(client, with_profile):
 
     response = client.get("/api/leads", headers=headers)
     assert response.status_code == 200
-    scores = [item["fit_score"] for item in response.json()]
+    scores = [item["fit_score"] for item in response.json()["items"]]
     assert scores == sorted(scores, key=lambda s: {"High": 1, "Medium": 2, "Low": 3}.get(s, 4))
 
 
@@ -62,5 +62,5 @@ def test_delete_lead_removes_it(client, with_profile):
 
     leads = client.get("/api/leads", headers=headers)
     assert leads.status_code == 200
-    ids = [lead["id"] for lead in leads.json()]
+    ids = [lead["id"] for lead in leads.json()["items"]]
     assert lead_id not in ids
