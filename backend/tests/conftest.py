@@ -104,6 +104,13 @@ def mock_external_generation(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("backend.proposals._generate_proposal", fake_generate_proposal)
 
 
+@pytest.fixture(autouse=True)
+def reset_rate_limits():
+    app.state.limiter._storage.reset()
+    yield
+    app.state.limiter._storage.reset()
+
+
 @pytest.fixture()
 def client(db_session: Session) -> TestClient:
     return TestClient(app)

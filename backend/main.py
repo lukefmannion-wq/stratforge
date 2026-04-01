@@ -3,7 +3,12 @@ import os
 
 import anthropic
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -23,6 +28,37 @@ from fastapi.templating import Jinja2Templates
 load_dotenv()
 
 app = FastAPI()
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+
+
+def _get_frontend_url() -> str:
+    return os.getenv("FRONTEND_URL", "http://localhost:3000")
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[_get_frontend_url()],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        content={"detail": "Too many requests — please wait a moment"},
+    )
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    return response
 
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
 
@@ -62,7 +98,8 @@ def _parse_claude_response(completion_text: str) -> dict:
 
 
 @app.post("/api/auth/signup", response_model=TokenResponse)
-def signup(user_create: UserCreate, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def signup(request: Request, user_create: UserCreate, db: Session = Depends(get_db)):
     try:
         existing = db.query(User).filter(User.email == user_create.email).first()
         if existing:
@@ -87,7 +124,8 @@ def signup(user_create: UserCreate, db: Session = Depends(get_db)):
 
 
 @app.post("/api/auth/login", response_model=TokenResponse)
-def login(user_create: UserCreate, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def login(request: Request, user_create: UserCreate, db: Session = Depends(get_db)):
     try:
         user = db.query(User).filter(User.email == user_create.email).first()
     except SQLAlchemyError:
