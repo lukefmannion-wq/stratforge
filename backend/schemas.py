@@ -267,3 +267,9 @@ class PipelineMetrics(BaseModel):
 
 class ReanalyzeRequest(BaseModel):
     re_analyze: bool = False
+
+
+class OnboardingStatus(BaseModel):
+    has_profile: bool
+    has_lead: bool
+    has_outreach: bool

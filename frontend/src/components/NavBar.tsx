@@ -4,6 +4,19 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { getBillingSubscription, getToken } from '@/lib/api';
 
+function NavTooltipLink({ href, label, tooltip, className }: { href: string; label: string; tooltip: string; className: string }) {
+  return (
+    <div className="group relative">
+      <Link href={href} className={className}>
+        {label}
+      </Link>
+      <span className="pointer-events-none absolute left-1/2 top-full z-40 mt-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-zinc-900 px-2 py-1 text-xs text-white opacity-0 transition group-hover:opacity-100">
+        {tooltip}
+      </span>
+    </div>
+  );
+}
+
 const badgeClass = (tier: string) => {
   switch (tier) {
     case 'solo':
@@ -46,21 +59,36 @@ export default function NavBar() {
         <Link href="/pipeline" className="text-lg font-semibold text-slate-900">
           StratForge Growth
         </Link>
-        <Link href="/pipeline" className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50">
-          Pipeline
-        </Link>
-        <Link href="/settings/billing" className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50">
-          Settings
-        </Link>
-        <Link href="/profile" className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50">
-          Profile
-        </Link>
-        <Link href="/leads" className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50">
-          Leads
-        </Link>
-        <Link href="/outreach" className="rounded-full bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-700">
-          Outreach
-        </Link>
+        <NavTooltipLink
+          href="/pipeline"
+          label="Pipeline"
+          tooltip="Track every lead through your consulting sales stages."
+          className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+        />
+        <NavTooltipLink
+          href="/settings/billing"
+          label="Settings"
+          tooltip="Manage your account, plan, and product preferences."
+          className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+        />
+        <NavTooltipLink
+          href="/profile"
+          label="Profile"
+          tooltip="Edit your consultant positioning and ideal client profile."
+          className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+        />
+        <NavTooltipLink
+          href="/leads"
+          label="Leads"
+          tooltip="Create, enrich, and organize your target companies."
+          className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+        />
+        <NavTooltipLink
+          href="/outreach"
+          label="Outreach"
+          tooltip="Generate and manage personalized outreach messages."
+          className="rounded-full bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-700"
+        />
       </div>
       {subscriptionTier ? (
         <Link href={settingsUrl} className={`rounded-full px-4 py-2 text-sm font-semibold ${badgeClass(subscriptionTier)}`}>

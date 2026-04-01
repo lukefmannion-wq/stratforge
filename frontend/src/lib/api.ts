@@ -89,6 +89,12 @@ export interface ConsultantProfile {
   created_at: string;
 }
 
+export interface OnboardingStatus {
+  has_profile: boolean;
+  has_lead: boolean;
+  has_outreach: boolean;
+}
+
 export async function signup(payload: AuthPayload) {
   return apiFetch<{ access_token: string; token_type: string }>("/auth/signup", {
     method: "POST",
@@ -120,6 +126,12 @@ export async function updateProfile(payload: Partial<ConsultantProfile>) {
   return apiFetch<ConsultantProfile>("/expertise/profile", {
     method: "PUT",
     body: payload,
+  });
+}
+
+export async function getOnboardingStatus() {
+  return apiFetch<OnboardingStatus>("/onboarding/status", {
+    method: "GET",
   });
 }
 

@@ -15,9 +15,9 @@ from .outreach import router as outreach_router
 from .pipeline import router as pipeline_router
 from .proposals import router as proposals_router
 from .billing import router as billing_router
-from .models import ConsultantProfile, User
+from .models import ConsultantProfile, Lead, OutreachMessage, User
 from .schemas import (ConsultantProfileOut, ProfileInput, ProfileUpdate,
-                      TokenResponse, UserCreate)
+                      TokenResponse, UserCreate, OnboardingStatus)
 from fastapi.templating import Jinja2Templates
 
 load_dotenv()
@@ -216,3 +216,22 @@ def update_expertise_profile(
 @app.get("/")
 def read_root():
     return {"message": "StratForge API is running"}
+
+
+@app.get("/api/onboarding/status", response_model=OnboardingStatus)
+def get_onboarding_status(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        has_profile = db.query(ConsultantProfile).filter(ConsultantProfile.user_id == current_user.id).first() is not None
+        has_lead = db.query(Lead).filter(Lead.user_id == current_user.id).first() is not None
+        has_outreach = db.query(OutreachMessage).filter(OutreachMessage.user_id == current_user.id).first() is not None
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
+
+    return OnboardingStatus(
+        has_profile=has_profile,
+        has_lead=has_lead,
+        has_outreach=has_outreach,
+    )

@@ -339,6 +339,10 @@ export default function PipelinePage() {
   };
 
   const draggingLead = activeId ? findLeadById(activeId) : null;
+  const totalLeads = useMemo(
+    () => Object.values(pipelineGroups).reduce((sum, leads) => sum + leads.length, 0),
+    [pipelineGroups],
+  );
 
   return (
     <div className="min-h-screen bg-zinc-50 px-6 py-10 text-zinc-900">
@@ -406,24 +410,39 @@ export default function PipelinePage() {
             </div>
           </div>
 
-          <div className="mt-6 overflow-x-auto">
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCorners}
-              onDragStart={handleDragStart}
-              onDragEnd={handleDragEnd}
-            >
-              <div className="flex min-w-[1400px] gap-4">
-                {stageOrder.map((stage) => (
-                  <StageColumn key={stage} stage={stage} leads={filteredGroups[stage] ?? []}>
-                    {(filteredGroups[stage] ?? []).map((lead) => (
-                      <LeadCard key={lead.id} lead={lead} onSelect={handleSelectLead} />
-                    ))}
-                  </StageColumn>
-                ))}
-              </div>
-            </DndContext>
-          </div>
+          {totalLeads === 0 ? (
+            <div className="mt-6 flex flex-col items-center justify-center rounded-3xl border border-dashed border-zinc-300 bg-zinc-50 px-6 py-16 text-center">
+              <svg width="180" height="120" viewBox="0 0 180 120" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <rect x="20" y="18" width="140" height="20" rx="10" fill="#dbeafe" stroke="#93c5fd" />
+                <polygon points="45,38 135,38 105,78 75,78" fill="#bfdbfe" stroke="#60a5fa" />
+                <rect x="82" y="78" width="16" height="24" rx="8" fill="#93c5fd" stroke="#3b82f6" />
+              </svg>
+              <h2 className="mt-6 text-2xl font-semibold text-zinc-900">Your pipeline is empty</h2>
+              <p className="mt-2 text-zinc-600">Start by adding your first target company</p>
+              <Link href="/leads" className="mt-6 rounded-2xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white hover:bg-sky-700">
+                Add your first lead
+              </Link>
+            </div>
+          ) : (
+            <div className="mt-6 overflow-x-auto">
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCorners}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+              >
+                <div className="flex min-w-[1400px] gap-4">
+                  {stageOrder.map((stage) => (
+                    <StageColumn key={stage} stage={stage} leads={filteredGroups[stage] ?? []}>
+                      {(filteredGroups[stage] ?? []).map((lead) => (
+                        <LeadCard key={lead.id} lead={lead} onSelect={handleSelectLead} />
+                      ))}
+                    </StageColumn>
+                  ))}
+                </div>
+              </DndContext>
+            </div>
+          )}
         </div>
       </div>
 

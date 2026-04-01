@@ -52,7 +52,7 @@ export default function OnboardingPage() {
     setLoading(true);
     try {
       await generateExpertise(formData);
-      router.push('/profile');
+      router.push('/welcome');
     } catch (err: any) {
       setError(err.message || 'Unable to generate profile.');
     } finally {
