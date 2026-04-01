@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import UpgradeBannerProvider from '@/components/UpgradeBannerProvider';
+import ApiFeedbackProvider from '@/components/ApiFeedbackProvider';
 import NavBar from '@/components/NavBar';
 import "./globals.css";
 
@@ -30,12 +31,14 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-zinc-50 text-zinc-900">
-        <UpgradeBannerProvider>
-          <div className="mx-auto flex min-h-full max-w-7xl flex-col px-4 py-4 sm:px-6 lg:px-8">
-            <NavBar />
-            {children}
-          </div>
-        </UpgradeBannerProvider>
+        <ApiFeedbackProvider>
+          <UpgradeBannerProvider>
+            <div className="mx-auto flex min-h-full max-w-7xl flex-col px-4 py-4 sm:px-6 lg:px-8">
+              <NavBar />
+              {children}
+            </div>
+          </UpgradeBannerProvider>
+        </ApiFeedbackProvider>
       </body>
     </html>
   );

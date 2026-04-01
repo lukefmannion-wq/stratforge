@@ -4,6 +4,7 @@ import os
 import anthropic
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, status
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from .auth import (create_access_token, get_current_user, hash_password,
@@ -62,26 +63,35 @@ def _parse_claude_response(completion_text: str) -> dict:
 
 @app.post("/api/auth/signup", response_model=TokenResponse)
 def signup(user_create: UserCreate, db: Session = Depends(get_db)):
-    existing = db.query(User).filter(User.email == user_create.email).first()
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email is already registered",
+    try:
+        existing = db.query(User).filter(User.email == user_create.email).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email is already registered",
+            )
+        user = User(
+            email=user_create.email,
+            hashed_password=hash_password(user_create.password),
         )
-    user = User(
-        email=user_create.email,
-        hashed_password=hash_password(user_create.password),
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    except HTTPException:
+        raise
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     access_token = create_access_token({"sub": str(user.id)})
     return {"access_token": access_token, "token_type": "bearer"}
 
 
 @app.post("/api/auth/login", response_model=TokenResponse)
 def login(user_create: UserCreate, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == user_create.email).first()
+    try:
+        user = db.query(User).filter(User.email == user_create.email).first()
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     if not user or not verify_password(user_create.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -99,13 +109,19 @@ def generate_expertise(
     db: Session = Depends(get_db),
 ):
     prompt = _build_claude_prompt(payload)
-    response = client.completions.create(
-        model="claude-3.5",
-        prompt=prompt,
-        max_tokens_to_sample=600,
-        temperature=0.2,
-        stop_sequences=["\n\n"],
-    )
+    try:
+        response = client.completions.create(
+            model="claude-3.5",
+            prompt=prompt,
+            max_tokens_to_sample=600,
+            temperature=0.2,
+            stop_sequences=["\n\n"],
+            timeout=30.0,
+        )
+    except anthropic.APITimeoutError:
+        raise HTTPException(status_code=504, detail="AI generation timed out — please try again.")
+    except anthropic.APIError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
     result = _parse_claude_response(response.completion)
     profile_data = {
         "service_offerings": result.get("service_offerings", []),
@@ -118,23 +134,27 @@ def generate_expertise(
         "target_industries": payload.target_industries,
         "key_outcomes": payload.key_outcomes,
     })
-    profile = db.query(ConsultantProfile).filter(ConsultantProfile.user_id == current_user.id).first()
-    if profile:
-        profile.raw_inputs = raw_inputs
-        profile.service_offerings = profile_data["service_offerings"]
-        profile.ideal_client_profile = profile_data["ideal_client_profile"]
-        profile.value_proposition = profile_data["value_proposition"]
-    else:
-        profile = ConsultantProfile(
-            user_id=current_user.id,
-            raw_inputs=raw_inputs,
-            service_offerings=profile_data["service_offerings"],
-            ideal_client_profile=profile_data["ideal_client_profile"],
-            value_proposition=profile_data["value_proposition"],
-        )
-        db.add(profile)
-    db.commit()
-    db.refresh(profile)
+    try:
+        profile = db.query(ConsultantProfile).filter(ConsultantProfile.user_id == current_user.id).first()
+        if profile:
+            profile.raw_inputs = raw_inputs
+            profile.service_offerings = profile_data["service_offerings"]
+            profile.ideal_client_profile = profile_data["ideal_client_profile"]
+            profile.value_proposition = profile_data["value_proposition"]
+        else:
+            profile = ConsultantProfile(
+                user_id=current_user.id,
+                raw_inputs=raw_inputs,
+                service_offerings=profile_data["service_offerings"],
+                ideal_client_profile=profile_data["ideal_client_profile"],
+                value_proposition=profile_data["value_proposition"],
+            )
+            db.add(profile)
+        db.commit()
+        db.refresh(profile)
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     return profile
 
 
@@ -150,7 +170,10 @@ def get_expertise_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    profile = db.query(ConsultantProfile).filter(ConsultantProfile.user_id == current_user.id).first()
+    try:
+        profile = db.query(ConsultantProfile).filter(ConsultantProfile.user_id == current_user.id).first()
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     if not profile:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -165,22 +188,28 @@ def update_expertise_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    profile = db.query(ConsultantProfile).filter(ConsultantProfile.user_id == current_user.id).first()
-    if not profile:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Consultant profile not found",
-        )
-    if updates.raw_inputs is not None:
-        profile.raw_inputs = updates.raw_inputs
-    if updates.service_offerings is not None:
-        profile.service_offerings = updates.service_offerings
-    if updates.ideal_client_profile is not None:
-        profile.ideal_client_profile = updates.ideal_client_profile
-    if updates.value_proposition is not None:
-        profile.value_proposition = updates.value_proposition
-    db.commit()
-    db.refresh(profile)
+    try:
+        profile = db.query(ConsultantProfile).filter(ConsultantProfile.user_id == current_user.id).first()
+        if not profile:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Consultant profile not found",
+            )
+        if updates.raw_inputs is not None:
+            profile.raw_inputs = updates.raw_inputs
+        if updates.service_offerings is not None:
+            profile.service_offerings = updates.service_offerings
+        if updates.ideal_client_profile is not None:
+            profile.ideal_client_profile = updates.ideal_client_profile
+        if updates.value_proposition is not None:
+            profile.value_proposition = updates.value_proposition
+        db.commit()
+        db.refresh(profile)
+    except HTTPException:
+        raise
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     return profile
 
 

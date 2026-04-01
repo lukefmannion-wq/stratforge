@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 import anthropic
 import httpx
 from dotenv import load_dotenv
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from .models import ConsultantProfile, Lead
@@ -122,6 +123,7 @@ def enrich_and_score_lead(lead: Lead, profile: Optional[ConsultantProfile], db: 
             max_tokens_to_sample=400,
             temperature=0.2,
             stop_sequences=["\n\n"],
+            timeout=30.0,
         )
         result = _parse_claude_response(response.completion)
         fit_score = result.get("fit_score", "Unable to analyze")
@@ -129,10 +131,10 @@ def enrich_and_score_lead(lead: Lead, profile: Optional[ConsultantProfile], db: 
         if fit_score not in {"High", "Medium", "Low"}:
             fit_score = "Unable to analyze"
         enrichment_data["claude_response"] = result
-    except Exception as exc:
-        fit_score = "Unable to analyze"
-        signal_justification = "Unable to analyze due to enrichment failure."
-        enrichment_data["claude_error"] = str(exc)
+    except anthropic.APITimeoutError:
+        raise HTTPException(status_code=504, detail="AI generation timed out — please try again.")
+    except anthropic.APIError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
 
     lead.fit_score = fit_score
     lead.signal_justification = signal_justification

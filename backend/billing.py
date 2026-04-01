@@ -5,6 +5,7 @@ from typing import Optional
 import stripe
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from .auth import get_current_user
@@ -72,9 +73,13 @@ def create_checkout_session(
     else:
         customer = stripe.Customer.create(email=current_user.email)
         current_user.stripe_customer_id = customer.id
-        db.add(current_user)
-        db.commit()
-        db.refresh(current_user)
+        try:
+            db.add(current_user)
+            db.commit()
+            db.refresh(current_user)
+        except SQLAlchemyError:
+            db.rollback()
+            raise HTTPException(status_code=500, detail="Database error — please try again")
         customer_id = customer.id
 
     session = stripe.checkout.Session.create(
@@ -114,38 +119,59 @@ async def billing_webhook(request: Request, db: Session = Depends(get_db)):
         tier = metadata.get("tier", "solo")
         email = data.get("customer_email")
         user = None
-        if customer_id:
-            user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
-        if not user and email:
-            user = db.query(User).filter(User.email == email).first()
+        try:
+            if customer_id:
+                user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+            if not user and email:
+                user = db.query(User).filter(User.email == email).first()
+        except SQLAlchemyError:
+            raise HTTPException(status_code=500, detail="Database error — please try again")
         if user:
             user.subscription_tier = tier
             user.subscription_status = "active"
             user.stripe_customer_id = customer_id or user.stripe_customer_id
             user.stripe_subscription_id = subscription_id or user.stripe_subscription_id
-            db.add(user)
-            db.commit()
+            try:
+                db.add(user)
+                db.commit()
+            except SQLAlchemyError:
+                db.rollback()
+                raise HTTPException(status_code=500, detail="Database error — please try again")
 
     elif event_type == "customer.subscription.updated":
         subscription_id = data.get("id")
         status = data.get("status")
         period_end = data.get("current_period_end")
-        user = db.query(User).filter(User.stripe_subscription_id == subscription_id).first()
+        try:
+            user = db.query(User).filter(User.stripe_subscription_id == subscription_id).first()
+        except SQLAlchemyError:
+            raise HTTPException(status_code=500, detail="Database error — please try again")
         if user:
             user.subscription_status = status or user.subscription_status
             if period_end:
                 user.subscription_current_period_end = datetime.utcfromtimestamp(int(period_end))
-            db.add(user)
-            db.commit()
+            try:
+                db.add(user)
+                db.commit()
+            except SQLAlchemyError:
+                db.rollback()
+                raise HTTPException(status_code=500, detail="Database error — please try again")
 
     elif event_type == "customer.subscription.deleted":
         subscription_id = data.get("id")
-        user = db.query(User).filter(User.stripe_subscription_id == subscription_id).first()
+        try:
+            user = db.query(User).filter(User.stripe_subscription_id == subscription_id).first()
+        except SQLAlchemyError:
+            raise HTTPException(status_code=500, detail="Database error — please try again")
         if user:
             user.subscription_tier = "free"
             user.subscription_status = "canceled"
-            db.add(user)
-            db.commit()
+            try:
+                db.add(user)
+                db.commit()
+            except SQLAlchemyError:
+                db.rollback()
+                raise HTTPException(status_code=500, detail="Database error — please try again")
 
     return {"status": "success"}
 

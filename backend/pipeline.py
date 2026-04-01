@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
 from .auth import get_current_user
@@ -33,7 +34,10 @@ RESPONDED_STAGES = {"Replied", "Call Scheduled", "Proposal Sent", "Closed Won", 
 
 
 def _get_lead(user_id: int, lead_id: int, db: Session) -> Lead:
-    lead = db.query(Lead).filter(Lead.id == lead_id, Lead.user_id == user_id).first()
+    try:
+        lead = db.query(Lead).filter(Lead.id == lead_id, Lead.user_id == user_id).first()
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     if not lead:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
     return lead
@@ -64,21 +68,28 @@ def _create_pipeline_event(
         created_at=datetime.utcnow(),
     )
     if db is not None:
-        db.add(event)
-        db.commit()
-        db.refresh(event)
+        try:
+            db.add(event)
+            db.commit()
+            db.refresh(event)
+        except SQLAlchemyError:
+            db.rollback()
+            raise HTTPException(status_code=500, detail="Database error — please try again")
     return event
 
 
 @router.get("")
 def get_pipeline(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    leads = (
-        db.query(Lead)
-        .options(selectinload(Lead.outreach_messages), selectinload(Lead.proposals))
-        .filter(Lead.user_id == user.id)
-        .order_by(Lead.created_at.desc())
-        .all()
-    )
+    try:
+        leads = (
+            db.query(Lead)
+            .options(selectinload(Lead.outreach_messages), selectinload(Lead.proposals))
+            .filter(Lead.user_id == user.id)
+            .order_by(Lead.created_at.desc())
+            .all()
+        )
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     grouped: Dict[str, List[Lead]] = {stage: [] for stage in VALID_PIPELINE_STAGES}
     for lead in leads:
         grouped.setdefault(lead.pipeline_stage, [])
@@ -106,8 +117,12 @@ def update_pipeline_stage(
             lead.status = "Lost"
         else:
             lead.status = to_stage
-        db.add(lead)
-        db.commit()
+        try:
+            db.add(lead)
+            db.commit()
+        except SQLAlchemyError:
+            db.rollback()
+            raise HTTPException(status_code=500, detail="Database error — please try again")
         _create_pipeline_event(
             user=user,
             lead=lead,
@@ -116,7 +131,10 @@ def update_pipeline_stage(
             to_stage=to_stage,
             db=db,
         )
-    db.refresh(lead)
+    try:
+        db.refresh(lead)
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     return _decorate_lead(lead)
 
 
@@ -131,15 +149,22 @@ def update_pipeline_deal(
     update_data = payload.dict(exclude_unset=True)
     for field, value in update_data.items():
         setattr(lead, field, value)
-    db.add(lead)
-    db.commit()
-    db.refresh(lead)
+    try:
+        db.add(lead)
+        db.commit()
+        db.refresh(lead)
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     return _decorate_lead(lead)
 
 
 @router.get("/metrics", response_model=PipelineMetrics)
 def get_pipeline_metrics(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    leads = db.query(Lead).filter(Lead.user_id == user.id).all()
+    try:
+        leads = db.query(Lead).filter(Lead.user_id == user.id).all()
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     total_leads = len(leads)
 
     leads_by_stage = {stage: 0 for stage in VALID_PIPELINE_STAGES}
@@ -193,12 +218,15 @@ def get_pipeline_activity(
     db: Session = Depends(get_db),
 ):
     lead = _get_lead(user.id, lead_id, db)
-    events = (
-        db.query(PipelineEvent)
-        .filter(PipelineEvent.user_id == user.id, PipelineEvent.lead_id == lead.id)
-        .order_by(PipelineEvent.created_at.desc())
-        .all()
-    )
+    try:
+        events = (
+            db.query(PipelineEvent)
+            .filter(PipelineEvent.user_id == user.id, PipelineEvent.lead_id == lead.id)
+            .order_by(PipelineEvent.created_at.desc())
+            .all()
+        )
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     for event in events:
         if event.lead:
             setattr(event, "company_name", event.lead.company_name)
@@ -209,13 +237,16 @@ def get_pipeline_activity(
 
 @router.get("/activity/recent", response_model=List[PipelineEventOut])
 def get_recent_activity(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    events = (
-        db.query(PipelineEvent)
-        .filter(PipelineEvent.user_id == user.id)
-        .order_by(PipelineEvent.created_at.desc())
-        .limit(20)
-        .all()
-    )
+    try:
+        events = (
+            db.query(PipelineEvent)
+            .filter(PipelineEvent.user_id == user.id)
+            .order_by(PipelineEvent.created_at.desc())
+            .limit(20)
+            .all()
+        )
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     for event in events:
         if event.lead:
             setattr(event, "company_name", event.lead.company_name)

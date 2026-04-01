@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import HTMLResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
 from .auth import get_current_user
@@ -51,23 +52,32 @@ def _parse_claude_response(completion_text: str) -> dict:
 
 
 def _get_profile(user_id: int, db: Session) -> Optional[ConsultantProfile]:
-    return db.query(ConsultantProfile).filter(ConsultantProfile.user_id == user_id).first()
+    try:
+        return db.query(ConsultantProfile).filter(ConsultantProfile.user_id == user_id).first()
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
 
 
 def _get_lead(user_id: int, lead_id: int, db: Session) -> Lead:
-    lead = db.query(Lead).filter(Lead.id == lead_id, Lead.user_id == user_id).first()
+    try:
+        lead = db.query(Lead).filter(Lead.id == lead_id, Lead.user_id == user_id).first()
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     if not lead:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
     return lead
 
 
 def _get_proposal(user_id: int, proposal_id: int, db: Session) -> Proposal:
-    proposal = (
-        db.query(Proposal)
-        .options(selectinload(Proposal.lead))
-        .filter(Proposal.id == proposal_id, Proposal.user_id == user_id)
-        .first()
-    )
+    try:
+        proposal = (
+            db.query(Proposal)
+            .options(selectinload(Proposal.lead))
+            .filter(Proposal.id == proposal_id, Proposal.user_id == user_id)
+            .first()
+        )
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     if not proposal:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Proposal not found")
     return proposal
@@ -107,13 +117,19 @@ def _generate_proposal(
             payload.currency,
         )
 
-    response = client.completions.create(
-        model="claude-3.5",
-        prompt=prompt,
-        max_tokens_to_sample=800,
-        temperature=0.2,
-        stop_sequences=["\n\n"],
-    )
+    try:
+        response = client.completions.create(
+            model="claude-3.5",
+            prompt=prompt,
+            max_tokens_to_sample=800,
+            temperature=0.2,
+            stop_sequences=["\n\n"],
+            timeout=30.0,
+        )
+    except anthropic.APITimeoutError:
+        raise HTTPException(status_code=504, detail="AI generation timed out — please try again.")
+    except anthropic.APIError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
     return _parse_claude_response(response.completion)
 
 
@@ -138,9 +154,13 @@ def _create_proposal(current_user: User, lead: Lead, data: dict, payload: Propos
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
-    db.add(proposal)
-    db.commit()
-    db.refresh(proposal)
+    try:
+        db.add(proposal)
+        db.commit()
+        db.refresh(proposal)
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     return _decorate_proposal(proposal)
 
 
@@ -160,7 +180,10 @@ def generate_proposal(
     if not profile:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Consultant profile is required for proposal generation.")
 
-    existing_proposal_count = db.query(Proposal).filter(Proposal.user_id == current_user.id).count()
+    try:
+        existing_proposal_count = db.query(Proposal).filter(Proposal.user_id == current_user.id).count()
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     check_limit(current_user, "max_proposals", existing_proposal_count)
 
     result = _generate_proposal(profile, lead, payload)
@@ -181,7 +204,10 @@ def list_proposals(
     )
     if lead_id is not None:
         query = query.filter(Proposal.lead_id == lead_id)
-    proposals = query.all()
+    try:
+        proposals = query.all()
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     return [_decorate_proposal(proposal) for proposal in proposals]
 
 
@@ -202,13 +228,17 @@ def update_proposal(
     db: Session = Depends(get_db),
 ):
     proposal = _get_proposal(current_user.id, proposal_id, db)
-    update_data = updates.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(proposal, field, value)
-    proposal.version += 1
-    proposal.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(proposal)
+    try:
+        update_data = updates.dict(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(proposal, field, value)
+        proposal.version += 1
+        proposal.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(proposal)
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     return _decorate_proposal(proposal)
 
 
@@ -219,8 +249,12 @@ def delete_proposal(
     db: Session = Depends(get_db),
 ):
     proposal = _get_proposal(current_user.id, proposal_id, db)
-    db.delete(proposal)
-    db.commit()
+    try:
+        db.delete(proposal)
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     return {"detail": "Proposal deleted"}
 
 
@@ -249,9 +283,13 @@ def duplicate_proposal(
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
-    db.add(duplicate)
-    db.commit()
-    db.refresh(duplicate)
+    try:
+        db.add(duplicate)
+        db.commit()
+        db.refresh(duplicate)
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     return _decorate_proposal(duplicate)
 
 
@@ -284,8 +322,12 @@ def mark_proposal_sent(
             )
         )
 
-    db.commit()
-    db.refresh(proposal)
+    try:
+        db.commit()
+        db.refresh(proposal)
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     return _decorate_proposal(proposal)
 
 

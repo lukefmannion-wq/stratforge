@@ -8,12 +8,25 @@ interface ApiOptions extends RequestInit {
 }
 
 let upgradeRequiredCallback: ((message: string) => void) | null = null;
+let serverErrorCallback: ((message: string) => void) | null = null;
+let loadingStateCallback: ((isLoading: boolean) => void) | null = null;
+let inFlightRequestCount = 0;
 
 export function registerUpgradeRequiredCallback(callback: (message: string) => void) {
   upgradeRequiredCallback = callback;
 }
 
+export function registerServerErrorCallback(callback: (message: string) => void) {
+  serverErrorCallback = callback;
+}
+
+export function registerLoadingStateCallback(callback: (isLoading: boolean) => void) {
+  loadingStateCallback = callback;
+}
+
 async function apiFetch<T>(path: string, options: ApiOptions = {}): Promise<T> {
+  inFlightRequestCount += 1;
+  loadingStateCallback?.(true);
   const token = typeof window !== "undefined" ? window.localStorage.getItem(ACCESS_TOKEN_KEY) : null;
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
@@ -29,24 +42,32 @@ async function apiFetch<T>(path: string, options: ApiOptions = {}): Promise<T> {
   }
 
   const { responseType = "json", onUpgradeRequired, ...fetchOptions } = options;
-  const response = await fetch(`${BASE_URL}/api${path}`, {
-    ...fetchOptions,
-    headers,
-    body,
-  });
+  try {
+    const response = await fetch(`${BASE_URL}/api${path}`, {
+      ...fetchOptions,
+      headers,
+      body,
+    });
 
-  const text = await response.text();
-  const data = responseType === "text" ? text as unknown as T : text ? JSON.parse(text) : null;
+    const text = await response.text();
+    const data = responseType === "text" ? text as unknown as T : text ? JSON.parse(text) : null;
 
-  if (!response.ok) {
-    const message = (responseType === "json" ? (data as any)?.detail || (data as any)?.message : text) || "Request failed";
-    if (response.status === 403) {
-      (onUpgradeRequired || upgradeRequiredCallback)?.(message);
+    if (!response.ok) {
+      const message = (responseType === "json" ? (data as any)?.detail || (data as any)?.message : text) || "Request failed";
+      if (response.status === 403) {
+        (onUpgradeRequired || upgradeRequiredCallback)?.(message);
+      }
+      if ([500, 502, 504].includes(response.status)) {
+        serverErrorCallback?.(message);
+      }
+      throw new Error(message);
     }
-    throw new Error(message);
-  }
 
-  return data;
+    return data;
+  } finally {
+    inFlightRequestCount = Math.max(0, inFlightRequestCount - 1);
+    loadingStateCallback?.(inFlightRequestCount > 0);
+  }
 }
 
 export interface AuthPayload {

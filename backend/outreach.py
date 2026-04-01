@@ -7,6 +7,7 @@ import anthropic
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import extract
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
 from .auth import get_current_user
@@ -40,23 +41,32 @@ def _parse_claude_response(completion_text: str) -> dict:
 
 
 def _get_profile(user_id: int, db: Session) -> Optional[ConsultantProfile]:
-    return db.query(ConsultantProfile).filter(ConsultantProfile.user_id == user_id).first()
+    try:
+        return db.query(ConsultantProfile).filter(ConsultantProfile.user_id == user_id).first()
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
 
 
 def _get_lead(user_id: int, lead_id: int, db: Session) -> Lead:
-    lead = db.query(Lead).filter(Lead.id == lead_id, Lead.user_id == user_id).first()
+    try:
+        lead = db.query(Lead).filter(Lead.id == lead_id, Lead.user_id == user_id).first()
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     if not lead:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
     return lead
 
 
 def _get_message(user_id: int, message_id: int, db: Session) -> OutreachMessage:
-    message = (
-        db.query(OutreachMessage)
-        .options(selectinload(OutreachMessage.lead))
-        .filter(OutreachMessage.id == message_id, OutreachMessage.user_id == user_id)
-        .first()
-    )
+    try:
+        message = (
+            db.query(OutreachMessage)
+            .options(selectinload(OutreachMessage.lead))
+            .filter(OutreachMessage.id == message_id, OutreachMessage.user_id == user_id)
+            .first()
+        )
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     if not message:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
     return message
@@ -71,11 +81,14 @@ def _decorate_message(message: OutreachMessage) -> OutreachMessage:
 
 
 def _normalize_followup_type(message_type: str, user_id: int, lead_id: int, db: Session) -> Tuple[str, int]:
-    existing = db.query(OutreachMessage).filter(
-        OutreachMessage.user_id == user_id,
-        OutreachMessage.lead_id == lead_id,
-        OutreachMessage.message_type.like("followup%"),
-    ).all()
+    try:
+        existing = db.query(OutreachMessage).filter(
+            OutreachMessage.user_id == user_id,
+            OutreachMessage.lead_id == lead_id,
+            OutreachMessage.message_type.like("followup%"),
+        ).all()
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     if message_type == "followup":
         next_number = len({m.message_type for m in existing}) + 1
         if next_number > 3:
@@ -98,11 +111,14 @@ def _normalize_followup_type(message_type: str, user_id: int, lead_id: int, db: 
 
 
 def _get_cold_email_body(user_id: int, lead_id: int, db: Session) -> str:
-    message = db.query(OutreachMessage).filter(
-        OutreachMessage.user_id == user_id,
-        OutreachMessage.lead_id == lead_id,
-        OutreachMessage.message_type == "cold_email",
-    ).first()
+    try:
+        message = db.query(OutreachMessage).filter(
+            OutreachMessage.user_id == user_id,
+            OutreachMessage.lead_id == lead_id,
+            OutreachMessage.message_type == "cold_email",
+        ).first()
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     return message.body if message else ""
 
 
@@ -120,13 +136,19 @@ def _generate_message(
     else:
         prompt = followup_prompt(profile, lead, sequence_number or 1, original_email_body or "")
 
-    response = client.completions.create(
-        model="claude-3.5",
-        prompt=prompt,
-        max_tokens_to_sample=400,
-        temperature=0.2,
-        stop_sequences=["\n\n"],
-    )
+    try:
+        response = client.completions.create(
+            model="claude-3.5",
+            prompt=prompt,
+            max_tokens_to_sample=400,
+            temperature=0.2,
+            stop_sequences=["\n\n"],
+            timeout=30.0,
+        )
+    except anthropic.APITimeoutError:
+        raise HTTPException(status_code=504, detail="AI generation timed out — please try again.")
+    except anthropic.APIError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
     result = _parse_claude_response(response.completion)
     subject_line = result.get("subject_line") if message_type == "cold_email" else None
     body = result.get("body") or ""
@@ -141,11 +163,14 @@ def _create_or_update_message(
     body: str,
     db: Session,
 ) -> OutreachMessage:
-    message = db.query(OutreachMessage).filter(
-        OutreachMessage.user_id == current_user.id,
-        OutreachMessage.lead_id == lead.id,
-        OutreachMessage.message_type == message_type,
-    ).first()
+    try:
+        message = db.query(OutreachMessage).filter(
+            OutreachMessage.user_id == current_user.id,
+            OutreachMessage.lead_id == lead.id,
+            OutreachMessage.message_type == message_type,
+        ).first()
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     if message:
         message.subject_line = subject_line
         message.body = body
@@ -163,8 +188,12 @@ def _create_or_update_message(
             generated_at=datetime.utcnow(),
         )
         db.add(message)
-    db.commit()
-    db.refresh(message)
+    try:
+        db.commit()
+        db.refresh(message)
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     return _decorate_message(message)
 
 
@@ -182,11 +211,14 @@ def generate_outreach(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Consultant profile is required for outreach generation.")
 
     now = datetime.utcnow()
-    monthly_count = db.query(OutreachMessage).filter(
-        OutreachMessage.user_id == current_user.id,
-        extract("year", OutreachMessage.generated_at) == now.year,
-        extract("month", OutreachMessage.generated_at) == now.month,
-    ).count()
+    try:
+        monthly_count = db.query(OutreachMessage).filter(
+            OutreachMessage.user_id == current_user.id,
+            extract("year", OutreachMessage.generated_at) == now.year,
+            extract("month", OutreachMessage.generated_at) == now.month,
+        ).count()
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     check_limit(current_user, "max_outreach_per_month", monthly_count)
 
     if request.message_type.startswith("followup"):
@@ -219,11 +251,14 @@ def generate_sequence(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Your current plan does not allow full sequence generation. Upgrade to access this feature.")
 
     now = datetime.utcnow()
-    monthly_count = db.query(OutreachMessage).filter(
-        OutreachMessage.user_id == current_user.id,
-        extract("year", OutreachMessage.generated_at) == now.year,
-        extract("month", OutreachMessage.generated_at) == now.month,
-    ).count()
+    try:
+        monthly_count = db.query(OutreachMessage).filter(
+            OutreachMessage.user_id == current_user.id,
+            extract("year", OutreachMessage.generated_at) == now.year,
+            extract("month", OutreachMessage.generated_at) == now.month,
+        ).count()
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     if monthly_count + 5 > limits["max_outreach_per_month"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -256,14 +291,17 @@ def list_outreach(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    query = (
-        db.query(OutreachMessage)
-        .options(selectinload(OutreachMessage.lead))
-        .filter(OutreachMessage.user_id == current_user.id)
-    )
-    if lead_id is not None:
-        query = query.filter(OutreachMessage.lead_id == lead_id)
-    messages = query.order_by(OutreachMessage.generated_at.desc()).all()
+    try:
+        query = (
+            db.query(OutreachMessage)
+            .options(selectinload(OutreachMessage.lead))
+            .filter(OutreachMessage.user_id == current_user.id)
+        )
+        if lead_id is not None:
+            query = query.filter(OutreachMessage.lead_id == lead_id)
+        messages = query.order_by(OutreachMessage.generated_at.desc()).all()
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     return [_decorate_message(message) for message in messages]
 
 
@@ -284,11 +322,15 @@ def update_outreach_message(
     db: Session = Depends(get_db),
 ):
     message = _get_message(current_user.id, message_id, db)
-    update_data = updates.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(message, field, value)
-    db.commit()
-    db.refresh(message)
+    try:
+        update_data = updates.dict(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(message, field, value)
+        db.commit()
+        db.refresh(message)
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     return message
 
 
@@ -299,8 +341,12 @@ def delete_outreach_message(
     db: Session = Depends(get_db),
 ):
     message = _get_message(current_user.id, message_id, db)
-    db.delete(message)
-    db.commit()
+    try:
+        db.delete(message)
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     return {"detail": "Message deleted"}
 
 
@@ -332,6 +378,10 @@ def mark_message_sent(
             )
         )
 
-    db.commit()
-    db.refresh(message)
+    try:
+        db.commit()
+        db.refresh(message)
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     return message

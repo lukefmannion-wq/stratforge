@@ -4,6 +4,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy import case
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
 from .auth import get_current_user
@@ -18,11 +19,17 @@ router = APIRouter(prefix="/api/leads", tags=["leads"])
 
 
 def _get_profile(user_id: int, db: Session) -> ConsultantProfile | None:
-    return db.query(ConsultantProfile).filter(ConsultantProfile.user_id == user_id).first()
+    try:
+        return db.query(ConsultantProfile).filter(ConsultantProfile.user_id == user_id).first()
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
 
 
 def _get_lead(user_id: int, lead_id: int, db: Session) -> Lead:
-    lead = db.query(Lead).filter(Lead.id == lead_id, Lead.user_id == user_id).first()
+    try:
+        lead = db.query(Lead).filter(Lead.id == lead_id, Lead.user_id == user_id).first()
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     if not lead:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
     return lead
@@ -34,33 +41,37 @@ def create_lead(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    existing_lead_count = db.query(Lead).filter(Lead.user_id == current_user.id).count()
-    check_limit(current_user, "max_leads", existing_lead_count)
+    try:
+        existing_lead_count = db.query(Lead).filter(Lead.user_id == current_user.id).count()
+        check_limit(current_user, "max_leads", existing_lead_count)
 
-    lead = Lead(
-        user_id=current_user.id,
-        company_name=lead_in.company_name,
-        company_website=lead_in.company_website,
-        contact_name=lead_in.contact_name,
-        contact_role=lead_in.contact_role,
-        notes=lead_in.notes,
-        status="Identified",
-        pipeline_stage="Identified",
-    )
-    db.add(lead)
-    db.commit()
-    db.refresh(lead)
-
-    profile = _get_profile(current_user.id, db)
-    if profile:
-        enrich_and_score_lead(lead, profile, db)
-    else:
-        lead.fit_score = "Unable to analyze"
-        lead.signal_justification = "Consultant profile is required for enrichment."
-        lead.enrichment_data = {"error": "Consultant profile missing"}
+        lead = Lead(
+            user_id=current_user.id,
+            company_name=lead_in.company_name,
+            company_website=lead_in.company_website,
+            contact_name=lead_in.contact_name,
+            contact_role=lead_in.contact_role,
+            notes=lead_in.notes,
+            status="Identified",
+            pipeline_stage="Identified",
+        )
         db.add(lead)
         db.commit()
         db.refresh(lead)
+
+        profile = _get_profile(current_user.id, db)
+        if profile:
+            enrich_and_score_lead(lead, profile, db)
+        else:
+            lead.fit_score = "Unable to analyze"
+            lead.signal_justification = "Consultant profile is required for enrichment."
+            lead.enrichment_data = {"error": "Consultant profile missing"}
+            db.add(lead)
+            db.commit()
+            db.refresh(lead)
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Database error — please try again")
 
     return lead
 
@@ -78,13 +89,16 @@ def list_leads(
         ),
         else_=4,
     )
-    leads = (
-        db.query(Lead)
-        .options(selectinload(Lead.outreach_messages))
-        .filter(Lead.user_id == current_user.id)
-        .order_by(score_order, Lead.created_at.desc())
-        .all()
-    )
+    try:
+        leads = (
+            db.query(Lead)
+            .options(selectinload(Lead.outreach_messages))
+            .filter(Lead.user_id == current_user.id)
+            .order_by(score_order, Lead.created_at.desc())
+            .all()
+        )
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     for lead in leads:
         lead.outreach_count = len(lead.outreach_messages)
         lead.proposal_count = len(lead.proposals)
@@ -111,12 +125,16 @@ def update_lead(
     db: Session = Depends(get_db),
 ):
     lead = _get_lead(current_user.id, lead_id, db)
-    update_data = updates.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(lead, field, value)
-    db.add(lead)
-    db.commit()
-    db.refresh(lead)
+    try:
+        update_data = updates.dict(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(lead, field, value)
+        db.add(lead)
+        db.commit()
+        db.refresh(lead)
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     return lead
 
 
@@ -127,8 +145,12 @@ def delete_lead(
     db: Session = Depends(get_db),
 ):
     lead = _get_lead(current_user.id, lead_id, db)
-    db.delete(lead)
-    db.commit()
+    try:
+        db.delete(lead)
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     return {"detail": "Lead deleted"}
 
 
@@ -152,7 +174,10 @@ def import_leads(
     if not limits["can_import_csv"]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Your current plan does not allow CSV import. Upgrade to import leads.")
 
-    existing_lead_count = db.query(Lead).filter(Lead.user_id == current_user.id).count()
+    try:
+        existing_lead_count = db.query(Lead).filter(Lead.user_id == current_user.id).count()
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Database error — please try again")
     available_space = limits["max_leads"] - existing_lead_count
     if available_space <= 0:
         raise HTTPException(
@@ -165,30 +190,34 @@ def import_leads(
             detail=f"Import would exceed your lead limit by {processed - available_space} leads. Upgrade to import more leads.",
         )
 
-    for row in rows:
-        lead = Lead(
-            user_id=current_user.id,
-            company_name=row.get("company_name", "").strip(),
-            company_website=row.get("company_website", "").strip() or None,
-            contact_name=row.get("contact_name", "").strip() or None,
-            contact_role=row.get("contact_role", "").strip() or None,
-            notes=row.get("notes", "").strip() or None,
-            status="Identified",
-            pipeline_stage="Identified",
-        )
-        db.add(lead)
-        db.commit()
-        db.refresh(lead)
-        if profile:
-            enrich_and_score_lead(lead, profile, db)
-        else:
-            lead.fit_score = "Unable to analyze"
-            lead.signal_justification = "Consultant profile is required for enrichment."
-            lead.enrichment_data = {"error": "Consultant profile missing"}
+    try:
+        for row in rows:
+            lead = Lead(
+                user_id=current_user.id,
+                company_name=row.get("company_name", "").strip(),
+                company_website=row.get("company_website", "").strip() or None,
+                contact_name=row.get("contact_name", "").strip() or None,
+                contact_role=row.get("contact_role", "").strip() or None,
+                notes=row.get("notes", "").strip() or None,
+                status="Identified",
+                pipeline_stage="Identified",
+            )
             db.add(lead)
             db.commit()
             db.refresh(lead)
-        imported += 1
+            if profile:
+                enrich_and_score_lead(lead, profile, db)
+            else:
+                lead.fit_score = "Unable to analyze"
+                lead.signal_justification = "Consultant profile is required for enrichment."
+                lead.enrichment_data = {"error": "Consultant profile missing"}
+                db.add(lead)
+                db.commit()
+                db.refresh(lead)
+            imported += 1
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Database error — please try again")
 
     return LeadImportResponse(imported=imported, processed=processed)
 
