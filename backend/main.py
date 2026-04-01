@@ -66,10 +66,7 @@ async def add_security_headers(request: Request, call_next):
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-if not ANTHROPIC_API_KEY:
-    raise RuntimeError("ANTHROPIC_API_KEY is required in the backend .env file")
-
-client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
 
 
 def _build_claude_prompt(data: ProfileInput) -> str:
@@ -150,6 +147,12 @@ def generate_expertise(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    if client is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI generation is not configured on this deployment.",
+        )
+
     prompt = _build_claude_prompt(payload)
     try:
         response = client.completions.create(

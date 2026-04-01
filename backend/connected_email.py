@@ -26,9 +26,6 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
-if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
-    raise RuntimeError("GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are required in the backend .env file")
-
 GMAIL_SCOPES = [
     "https://www.googleapis.com/auth/gmail.send",
     "https://www.googleapis.com/auth/gmail.readonly",
@@ -37,11 +34,21 @@ GMAIL_SCOPES = [
 router = APIRouter(prefix="/api/email", tags=["connected-email"])
 
 
+def _get_google_oauth_credentials() -> tuple[str, str]:
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google OAuth is not configured on this deployment.",
+        )
+    return GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+
+
 def _build_flow(redirect_uri: str) -> Flow:
+    client_id, client_secret = _get_google_oauth_credentials()
     client_config = {
         "web": {
-            "client_id": GOOGLE_CLIENT_ID,
-            "client_secret": GOOGLE_CLIENT_SECRET,
+            "client_id": client_id,
+            "client_secret": client_secret,
             "auth_uri": "https://accounts.google.com/o/oauth2/auth",
             "token_uri": "https://oauth2.googleapis.com/token",
         }
