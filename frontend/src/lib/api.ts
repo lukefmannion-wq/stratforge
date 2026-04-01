@@ -1,5 +1,5 @@
 const ACCESS_TOKEN_KEY = "access_token";
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface ApiOptions extends RequestInit {
   body?: any;
