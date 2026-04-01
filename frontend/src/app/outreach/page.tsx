@@ -4,15 +4,19 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
+  getConnectedEmailAccounts,
+  getGmailAuthUrl,
   getLead,
   getOutreachMessages,
   generateOutreach,
   generateOutreachSequence,
   getToken,
   markOutreachSent,
+  sendViaConnectedEmail,
   updateOutreachMessage,
 } from '@/lib/api';
-import type { OutreachMessage } from '@/lib/api';
+import type { ConnectedEmailAccount, OutreachMessage } from '@/lib/api';
+import { useApiFeedback } from '@/components/ApiFeedbackProvider';
 
 const tabDefinitions = [
   { key: 'cold_email', label: 'Cold Email' },
@@ -31,6 +35,7 @@ const statusClasses: Record<string, string> = {
 
 export default function OutreachPage() {
   const router = useRouter();
+  const { showToast } = useApiFeedback();
   const [leadId, setLeadId] = useState<number | null>(null);
   const [lead, setLead] = useState<any>(null);
   const [messages, setMessages] = useState<OutreachMessage[]>([]);
@@ -45,6 +50,11 @@ export default function OutreachPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [copied, setCopied] = useState(false);
+  const [connectedAccounts, setConnectedAccounts] = useState<ConnectedEmailAccount[]>([]);
+  const [emailPanelOpen, setEmailPanelOpen] = useState(false);
+  const [sendToEmail, setSendToEmail] = useState('');
+  const [sendingViaConnected, setSendingViaConnected] = useState(false);
+  const [connectingGmail, setConnectingGmail] = useState(false);
   const saveTimeout = useRef<number | null>(null);
 
   const selectedMessage = useMemo(
@@ -72,6 +82,7 @@ export default function OutreachPage() {
     }
     fetchLead();
     fetchMessages();
+    fetchConnectedAccounts();
   }, [leadId]);
 
   useEffect(() => {
@@ -84,7 +95,14 @@ export default function OutreachPage() {
     setDraftSubject(selectedMessage.subject_line || '');
     setDraftBody(selectedMessage.body || '');
     setDraftNotes(selectedMessage.notes || '');
+    setSendToEmail(lead?.contact_email || '');
   }, [selectedMessage]);
+
+  useEffect(() => {
+    if (lead?.contact_email) {
+      setSendToEmail(lead.contact_email);
+    }
+  }, [lead?.contact_email]);
 
   useEffect(() => {
     if (!selectedMessage) return;
@@ -122,6 +140,15 @@ export default function OutreachPage() {
       setError(err.message || 'Could not load outreach messages.');
     } finally {
       setLoadingMessages(false);
+    }
+  };
+
+  const fetchConnectedAccounts = async () => {
+    try {
+      const accounts = await getConnectedEmailAccounts();
+      setConnectedAccounts(accounts.filter((account) => account.provider === 'gmail' && account.is_active));
+    } catch {
+      setConnectedAccounts([]);
     }
   };
 
@@ -218,6 +245,44 @@ export default function OutreachPage() {
       setError(err.message || 'Could not update status.');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleConnectGmail = async () => {
+    setConnectingGmail(true);
+    try {
+      const response = await getGmailAuthUrl();
+      window.location.href = response.authorization_url;
+    } catch (err: any) {
+      setError(err.message || 'Could not start Gmail connection flow.');
+      setConnectingGmail(false);
+    }
+  };
+
+  const handleSendViaConnectedEmail = async () => {
+    if (!selectedMessage || connectedAccounts.length === 0) return;
+    if (!sendToEmail.trim()) {
+      setError('Recipient email is required.');
+      return;
+    }
+    setSendingViaConnected(true);
+    setError('');
+    try {
+      await sendViaConnectedEmail({
+        account_id: connectedAccounts[0].id,
+        to_email: sendToEmail.trim(),
+        subject: selectedTab === 'cold_email' ? draftSubject : `${lead?.company_name || 'Prospect'} outreach`,
+        body: draftBody,
+        message_id: selectedMessage.id,
+      });
+      await fetchMessages();
+      setEmailPanelOpen(false);
+      setSuccess('Email sent from your Gmail account');
+      showToast('Email sent from your Gmail account');
+    } catch (err: any) {
+      setError(err.message || 'Could not send from connected Gmail account.');
+    } finally {
+      setSendingViaConnected(false);
     }
   };
 
@@ -368,7 +433,7 @@ export default function OutreachPage() {
                   </label>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-wrap items-start gap-3">
                   <button
                     type="button"
                     onClick={generateSelected}
@@ -377,14 +442,38 @@ export default function OutreachPage() {
                   >
                     {actionLoading ? 'Writing message...' : 'Generate'}
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleCopy}
-                    disabled={!selectedMessage}
-                    className="rounded-2xl border border-zinc-300 bg-white px-5 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {copied ? 'Copied!' : 'Copy'}
-                  </button>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCopy}
+                      disabled={!selectedMessage}
+                      className="rounded-2xl border border-zinc-300 bg-white px-5 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {copied ? 'Copied!' : 'Copy'}
+                    </button>
+                    {connectedAccounts.length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setEmailPanelOpen((current) => !current)}
+                        disabled={!selectedMessage}
+                        className="rounded-2xl border border-sky-300 bg-sky-50 px-5 py-3 text-sm font-semibold text-sky-700 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Send via my email
+                      </button>
+                    ) : (
+                      <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
+                        Connect your Gmail to send directly from your inbox{' '}
+                        <button
+                          type="button"
+                          onClick={handleConnectGmail}
+                          disabled={connectingGmail}
+                          className="font-semibold text-sky-700 underline disabled:opacity-50"
+                        >
+                          {connectingGmail ? 'Connecting...' : 'Connect Gmail'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <button
                     type="button"
                     onClick={handleMarkSent}
@@ -394,6 +483,64 @@ export default function OutreachPage() {
                     Mark as Sent
                   </button>
                 </div>
+                {emailPanelOpen && selectedMessage && connectedAccounts.length > 0 ? (
+                  <div className="space-y-4 rounded-3xl border border-sky-200 bg-sky-50 p-5">
+                    <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-sky-700">Confirm email send</h3>
+                    <label className="block text-sm font-semibold text-zinc-900">
+                      From
+                      <input
+                        type="text"
+                        value={connectedAccounts[0].email_address}
+                        readOnly
+                        className="mt-2 w-full rounded-2xl border border-zinc-300 bg-zinc-100 px-4 py-3 text-sm text-zinc-700"
+                      />
+                    </label>
+                    <label className="block text-sm font-semibold text-zinc-900">
+                      To
+                      <input
+                        type="email"
+                        value={sendToEmail}
+                        onChange={(event) => setSendToEmail(event.target.value)}
+                        className="mt-2 w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-500"
+                      />
+                    </label>
+                    <label className="block text-sm font-semibold text-zinc-900">
+                      Subject
+                      <input
+                        type="text"
+                        value={selectedTab === 'cold_email' ? draftSubject : `${lead?.company_name || 'Prospect'} outreach`}
+                        readOnly
+                        className="mt-2 w-full rounded-2xl border border-zinc-300 bg-zinc-100 px-4 py-3 text-sm text-zinc-700"
+                      />
+                    </label>
+                    <label className="block text-sm font-semibold text-zinc-900">
+                      Body
+                      <textarea
+                        value={draftBody}
+                        readOnly
+                        rows={8}
+                        className="mt-2 w-full rounded-2xl border border-zinc-300 bg-zinc-100 px-4 py-3 text-sm text-zinc-700"
+                      />
+                    </label>
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={handleSendViaConnectedEmail}
+                        disabled={sendingViaConnected}
+                        className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {sendingViaConnected ? 'Sending...' : 'Send Now'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEmailPanelOpen(false)}
+                        className="rounded-2xl border border-zinc-300 bg-white px-5 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
                 {loadingMessages ? <p className="text-sm text-zinc-500">Refreshing messages...</p> : null}
                 {selectedMessage && selectedMessage.status === 'Sent' ? (
                   <p className="text-sm text-slate-500">This message was sent on {new Date(selectedMessage.sent_at || '').toLocaleDateString() || '—'}.</p>
@@ -411,3 +558,4 @@ export default function OutreachPage() {
     </div>
   );
 }
+

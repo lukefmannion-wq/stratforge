@@ -289,3 +289,22 @@ class OnboardingStatus(BaseModel):
     has_profile: bool
     has_lead: bool
     has_outreach: bool
+
+
+class EmailAccountOut(BaseModel):
+    id: int
+    provider: str
+    email_address: str
+    is_active: bool
+
+    class Config:
+        orm_mode = True
+
+
+class EmailSendRequest(BaseModel):
+    account_id: int
+    to_email: EmailStr
+    subject: str
+    body: str
+    html: Optional[str] = None
+    message_id: Optional[int] = None

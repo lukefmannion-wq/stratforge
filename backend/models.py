@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Date, Float, Integer, String, DateTime, Text, ForeignKey, JSON
+from sqlalchemy import Column, Date, Float, Integer, String, DateTime, Text, ForeignKey, JSON, Boolean
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -20,6 +20,7 @@ class User(Base):
 
     consultant_profile = relationship("ConsultantProfile", back_populates="user", uselist=False)
     leads = relationship("Lead", back_populates="user", cascade="all, delete-orphan")
+    email_accounts = relationship("EmailAccount", back_populates="user", cascade="all, delete-orphan")
 
 
 class ConsultantProfile(Base):
@@ -119,3 +120,19 @@ class PipelineEvent(Base):
 
     user = relationship("User")
     lead = relationship("Lead", back_populates="pipeline_events")
+
+
+class EmailAccount(Base):
+    __tablename__ = "email_accounts"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    provider = Column(String(50), nullable=False)
+    email_address = Column(String(255), nullable=False)
+    access_token = Column(Text, nullable=False)
+    refresh_token = Column(Text, nullable=False)
+    token_expires_at = Column(DateTime, nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    user = relationship("User", back_populates="email_accounts")

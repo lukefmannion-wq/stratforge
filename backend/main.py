@@ -21,6 +21,7 @@ from .outreach import router as outreach_router
 from .pipeline import router as pipeline_router
 from .proposals import router as proposals_router
 from .billing import router as billing_router
+from .connected_email import router as connected_email_router
 from .models import ConsultantProfile, Lead, OutreachMessage, User
 from .schemas import (ConsultantProfileOut, ProfileInput, ProfileUpdate,
                       TokenResponse, UserCreate, OnboardingStatus)
@@ -204,6 +205,7 @@ app.include_router(outreach_router)
 app.include_router(proposals_router)
 app.include_router(pipeline_router)
 app.include_router(billing_router)
+app.include_router(connected_email_router)
 
 
 @app.get("/api/expertise/profile", response_model=ConsultantProfileOut)

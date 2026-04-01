@@ -241,6 +241,22 @@ export interface OutreachMessage {
   contact_role?: string | null;
 }
 
+export interface ConnectedEmailAccount {
+  id: number;
+  provider: string;
+  email_address: string;
+  is_active: boolean;
+}
+
+export interface SendConnectedEmailPayload {
+  account_id: number;
+  to_email: string;
+  subject: string;
+  body: string;
+  html?: string;
+  message_id?: number;
+}
+
 export interface ProposalPhase {
   phase_name: string;
   description: string;
@@ -375,6 +391,31 @@ export async function deleteOutreachMessage(id: number) {
 export async function markOutreachSent(id: number) {
   return apiFetch<OutreachMessage>(`/outreach/${id}/mark-sent`, {
     method: "POST",
+  });
+}
+
+export async function getGmailAuthUrl() {
+  return apiFetch<{ authorization_url: string }>("/email/auth/gmail", {
+    method: "GET",
+  });
+}
+
+export async function getConnectedEmailAccounts() {
+  return apiFetch<ConnectedEmailAccount[]>("/email/accounts", {
+    method: "GET",
+  });
+}
+
+export async function disconnectEmailAccount(accountId: number) {
+  return apiFetch<{ detail: string }>(`/email/accounts/${accountId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function sendViaConnectedEmail(payload: SendConnectedEmailPayload) {
+  return apiFetch<{ success: boolean }>("/email/send", {
+    method: "POST",
+    body: payload,
   });
 }
 
