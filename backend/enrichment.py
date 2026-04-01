@@ -12,10 +12,7 @@ from .models import ConsultantProfile, Lead
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-if not ANTHROPIC_API_KEY:
-    raise RuntimeError("ANTHROPIC_API_KEY is required in the backend .env file")
-
-client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
 
 
 def _parse_claude_response(completion_text: str) -> Dict[str, Any]:
@@ -75,6 +72,11 @@ def _build_lead_prompt(
 
 
 def enrich_and_score_lead(lead: Lead, profile: Optional[ConsultantProfile], db: Session) -> Lead:
+    if client is None:
+        raise HTTPException(
+            status_code=503,
+            detail="AI generation is not configured on this deployment.",
+        )
     website_url = _normalize_website_url(lead.company_website)
     website_text = ""
     enrichment_data: Dict[str, Any] = {
