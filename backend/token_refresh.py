@@ -14,20 +14,31 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")
 
-if not ENCRYPTION_KEY:
-    raise RuntimeError("ENCRYPTION_KEY is required in the backend .env file")
+fernet = Fernet(ENCRYPTION_KEY.encode()) if ENCRYPTION_KEY else None
 
-if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
-    raise RuntimeError("GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are required in the backend .env file")
 
-fernet = Fernet(ENCRYPTION_KEY.encode())
+def _ensure_token_refresh_configured() -> None:
+    missing = []
+    if not ENCRYPTION_KEY:
+        missing.append("ENCRYPTION_KEY")
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        missing.append("GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET")
+    if missing:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Connected email is not configured on this deployment (missing: {', '.join(missing)}).",
+        )
 
 
 def encrypt_value(value: str) -> str:
+    _ensure_token_refresh_configured()
+    assert fernet is not None
     return fernet.encrypt(value.encode()).decode()
 
 
 def decrypt_value(value: str) -> str:
+    _ensure_token_refresh_configured()
+    assert fernet is not None
     return fernet.decrypt(value.encode()).decode()
 
 
@@ -43,6 +54,7 @@ def _is_expired(token_expires_at: datetime) -> bool:
 
 
 def get_valid_access_token(account, db: Session) -> str:
+    _ensure_token_refresh_configured()
     access_token = decrypt_value(account.access_token)
     if not _is_expired(account.token_expires_at):
         return access_token
