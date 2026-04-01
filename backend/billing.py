@@ -26,11 +26,8 @@ STRIPE_SOLO_PRICE_ID = os.getenv("STRIPE_SOLO_PRICE_ID")
 STRIPE_GROWTH_PRICE_ID = os.getenv("STRIPE_GROWTH_PRICE_ID")
 STRIPE_AGENCY_PRICE_ID = os.getenv("STRIPE_AGENCY_PRICE_ID")
 FRONTEND_URL = os.getenv("FRONTEND_URL")
-
-if not STRIPE_SECRET_KEY:
-    raise RuntimeError("STRIPE_SECRET_KEY is required in the backend .env file")
-
-stripe.api_key = STRIPE_SECRET_KEY
+if STRIPE_SECRET_KEY:
+    stripe.api_key = STRIPE_SECRET_KEY
 
 router = APIRouter(prefix="/api/billing", tags=["billing"])
 
@@ -40,6 +37,19 @@ PRICE_ID_MAP = {
     "growth": STRIPE_GROWTH_PRICE_ID,
     "agency": STRIPE_AGENCY_PRICE_ID,
 }
+
+
+def _ensure_stripe_configured(require_webhook_secret: bool = False) -> None:
+    missing = []
+    if not STRIPE_SECRET_KEY:
+        missing.append("STRIPE_SECRET_KEY")
+    if require_webhook_secret and not STRIPE_WEBHOOK_SECRET:
+        missing.append("STRIPE_WEBHOOK_SECRET")
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Billing is not configured on this deployment (missing: {', '.join(missing)}).",
+        )
 
 
 def _get_price_id(tier: str) -> str:
@@ -61,6 +71,7 @@ def create_checkout_session(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    _ensure_stripe_configured()
     if payload.tier not in VALID_TIERS:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid tier selected.")
 
@@ -97,6 +108,7 @@ def create_checkout_session(
 
 @router.post("/webhook")
 async def billing_webhook(request: Request, db: Session = Depends(get_db)):
+    _ensure_stripe_configured(require_webhook_secret=True)
     payload = await request.body()
     signature = request.headers.get("stripe-signature")
     if not signature or not STRIPE_WEBHOOK_SECRET:
@@ -188,6 +200,7 @@ def get_subscription(current_user: User = Depends(get_current_user)):
 
 @router.post("/create-portal-session", response_model=BillingPortalResponse)
 def create_portal_session(current_user: User = Depends(get_current_user)):
+    _ensure_stripe_configured()
     if not current_user.stripe_customer_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Stripe customer is required to launch the portal.")
     return_url = _get_return_url("settings/billing", "http://localhost:3000/settings/billing")
