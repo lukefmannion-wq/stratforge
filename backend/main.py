@@ -216,3 +216,12 @@ def update_expertise_profile(
 @app.get("/")
 def read_root():
     return {"message": "StratForge API is running"}
+
+
+@app.get("/api/debug/force-error")
+def debug_force_error(kind: str = "500"):
+    if kind == "500":
+        raise HTTPException(status_code=500, detail="Database error — please try again")
+    if kind == "504":
+        raise HTTPException(status_code=504, detail="AI generation timed out — please try again.")
+    return {"detail": "Set kind=500 or kind=504"}
