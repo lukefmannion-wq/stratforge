@@ -71,7 +71,7 @@ client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY els
 
 def _build_claude_prompt(data: ProfileInput) -> str:
     return (
-        f"{anthropic.HUMAN_PROMPT}You are an expert consultant strategist. "
+        "You are an expert consultant strategist. "
         "Read the consultant background and return only valid JSON with the keys: "
         "service_offerings, ideal_client_profile, and value_proposition. "
         "service_offerings should be an array of 3-5 concise service names. "
@@ -81,9 +81,8 @@ def _build_claude_prompt(data: ProfileInput) -> str:
         "Consultant background:\n"
         f"Resume/background: {data.resume_text}\n"
         f"Past projects: {data.past_projects}\n"
-        f"""Target industries: {data.target_industries}\n"""
-        f"Key outcomes: {data.key_outcomes}\n"
-        f"{anthropic.AI_PROMPT}"
+        f"Target industries: {data.target_industries}\n"
+        f"Key outcomes: {data.key_outcomes}"
     )
 
 
@@ -155,19 +154,16 @@ def generate_expertise(
 
     prompt = _build_claude_prompt(payload)
     try:
-        response = client.completions.create(
-            model="claude-3.5",
-            prompt=prompt,
-            max_tokens_to_sample=600,
-            temperature=0.2,
-            stop_sequences=["\n\n"],
-            timeout=30.0,
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=600,
+            messages=[{"role": "user", "content": prompt}],
         )
     except anthropic.APITimeoutError:
         raise HTTPException(status_code=504, detail="AI generation timed out — please try again.")
     except anthropic.APIError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
-    result = _parse_claude_response(response.completion)
+    result = _parse_claude_response(response.content[0].text)
     profile_data = {
         "service_offerings": result.get("service_offerings", []),
         "ideal_client_profile": result.get("ideal_client_profile", {}),
