@@ -6,7 +6,7 @@ from fastapi import HTTPException, status
 
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
-engine = create_engine(DATABASE_URL, future=True) if DATABASE_URL else None
+engine = create_engine(DATABASE_URL, future=True, connect_args={"sslmode": "require"}) if DATABASE_URL else None
 SessionLocal = (
     sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
     if engine is not None
