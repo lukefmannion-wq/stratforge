@@ -13,19 +13,19 @@ from slowapi.util import get_remote_address
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from .auth import (create_access_token, get_current_user, hash_password,
+from auth import (create_access_token, get_current_user, hash_password,
                    verify_password)
-from .database import Base, SessionLocal, engine, get_db
-from .leads import router as leads_router
-from .outreach import router as outreach_router
-from .pipeline import router as pipeline_router
-from .proposals import router as proposals_router
-from .billing import router as billing_router
-from .connected_email import router as connected_email_router
-from .models import ConsultantProfile, Lead, OutreachMessage, User
-from .schemas import (ConsultantProfileOut, ProfileInput, ProfileUpdate,
+from database import Base, SessionLocal, engine, get_db
+from leads import router as leads_router
+from outreach import router as outreach_router
+from pipeline import router as pipeline_router
+from proposals import router as proposals_router
+from billing import router as billing_router
+from connected_email import router as connected_email_router
+from models import ConsultantProfile, Lead, OutreachMessage, User
+from schemas import (ConsultantProfileOut, ProfileInput, ProfileUpdate,
                       TokenResponse, UserCreate, OnboardingStatus)
-from .emails import send_welcome_email
+from emails import send_welcome_email
 from fastapi.templating import Jinja2Templates
 
 load_dotenv()

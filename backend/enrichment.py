@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from .models import ConsultantProfile, Lead
+from models import ConsultantProfile, Lead
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")

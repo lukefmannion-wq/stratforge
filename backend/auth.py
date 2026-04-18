@@ -10,8 +10,8 @@ from passlib.context import CryptContext
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from .database import get_db
-from .models import User
+from database import get_db
+from models import User
 
 load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY")

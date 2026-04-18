@@ -8,12 +8,12 @@ from sqlalchemy import case
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
-from .auth import get_current_user
-from .database import get_db
-from .enrichment import enrich_and_score_lead
-from .feature_limits import check_limit, get_limits_for_tier
-from .models import ConsultantProfile, Lead, User
-from .schemas import (LeadCreate, LeadImportResponse, LeadOut,
+from auth import get_current_user
+from database import get_db
+from enrichment import enrich_and_score_lead
+from feature_limits import check_limit, get_limits_for_tier
+from models import ConsultantProfile, Lead, User
+from schemas import (LeadCreate, LeadImportResponse, LeadOut,
                       LeadUpdate, PaginatedLeadResponse, ReanalyzeRequest)
 
 router = APIRouter(prefix="/api/leads", tags=["leads"])

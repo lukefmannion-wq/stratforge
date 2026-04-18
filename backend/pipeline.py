@@ -5,11 +5,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
-from .auth import get_current_user
-from .database import get_db
-from .emails import send_deal_won_notification
-from .models import Lead, PipelineEvent, User
-from .schemas import (
+from auth import get_current_user
+from database import get_db
+from emails import send_deal_won_notification
+from models import Lead, PipelineEvent, User
+from schemas import (
     PipelineDealUpdate,
     PipelineEventOut,
     PipelineMetrics,

@@ -11,13 +11,13 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
-from .auth import get_current_user
-from .database import get_db
-from .feature_limits import check_limit
-from .emails import send_proposal_sent_notification
-from .models import ConsultantProfile, Lead, PipelineEvent, Proposal, User
-from .proposal_prompts import proposal_prompt, sow_prompt
-from .schemas import (
+from auth import get_current_user
+from database import get_db
+from feature_limits import check_limit
+from emails import send_proposal_sent_notification
+from models import ConsultantProfile, Lead, PipelineEvent, Proposal, User
+from proposal_prompts import proposal_prompt, sow_prompt
+from schemas import (
     ProposalGenerateRequest,
     ProposalOut,
     ProposalUpdate,

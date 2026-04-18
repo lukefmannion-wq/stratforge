@@ -11,13 +11,13 @@ from sqlalchemy import extract
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
-from .auth import get_current_user
-from .database import get_db
-from .feature_limits import check_limit, get_limits_for_tier
-from .models import ConsultantProfile, Lead, OutreachMessage, PipelineEvent, User
-from .outreach_prompts import (cold_email_prompt, followup_prompt,
+from auth import get_current_user
+from database import get_db
+from feature_limits import check_limit, get_limits_for_tier
+from models import ConsultantProfile, Lead, OutreachMessage, PipelineEvent, User
+from outreach_prompts import (cold_email_prompt, followup_prompt,
                                linkedin_prompt)
-from .schemas import (OutreachGenerateRequest, OutreachMessageOut,
+from schemas import (OutreachGenerateRequest, OutreachMessageOut,
                       OutreachMessageUpdate, OutreachSequenceRequest,
                       PaginatedOutreachResponse)
 

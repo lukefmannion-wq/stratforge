@@ -13,12 +13,12 @@ from googleapiclient.discovery import build
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from .auth import get_current_user
-from .database import get_db
-from .models import EmailAccount, User
-from .outreach import mark_message_sent
-from .schemas import EmailAccountOut, EmailSendRequest
-from .token_refresh import encrypt_value, get_valid_access_token
+from auth import get_current_user
+from database import get_db
+from models import EmailAccount, User
+from outreach import mark_message_sent
+from schemas import EmailAccountOut, EmailSendRequest
+from token_refresh import encrypt_value, get_valid_access_token
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
