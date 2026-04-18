@@ -39,7 +39,7 @@ frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
 origins = [
     "http://localhost:3000",
     frontend_url,
-    "https://stratforge-98ai.vercel.app",
+    "https://stratforge-v3-4-18-qgy91vwxr-prompt-forge-x.vercel.app",
 ]
 
 app.add_middleware(
