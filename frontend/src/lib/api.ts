@@ -1,5 +1,5 @@
 const ACCESS_TOKEN_KEY = "access_token";
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://stratforge-production.up.railway.app';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://stratforge-backend-production.up.railway.app';
 
 interface ApiOptions extends RequestInit {
   body?: any;
