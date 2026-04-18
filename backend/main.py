@@ -34,14 +34,17 @@ app = FastAPI()
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 
+frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
-def _get_frontend_url() -> str:
-    return os.getenv("FRONTEND_URL", "http://localhost:3000")
-
+origins = [
+    "http://localhost:3000",
+    frontend_url,
+    "https://stratforge-98ai.vercel.app",
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[_get_frontend_url()],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
