@@ -43,7 +43,7 @@ export default function SignupPage() {
         window.location.href = session.url;
         return;
       }
-      router.push('/pipeline');
+      router.push('/onboarding');
     } catch (err: any) {
       setError(err.message || 'Signup failed');
     } finally {

@@ -291,6 +291,47 @@ class OnboardingStatus(BaseModel):
     has_outreach: bool
 
 
+class OnboardingStepInput(BaseModel):
+    full_name: Optional[str] = None
+    professional_title: Optional[str] = None
+    years_of_experience: Optional[int] = None
+    professional_background: Optional[str] = None
+    previous_employers: Optional[List[str]] = None
+    education: Optional[List[Dict[str, Any]]] = None
+    certifications: Optional[List[str]] = None
+    industries_of_expertise: Optional[List[str]] = None
+    industries_of_interest: Optional[List[str]] = None
+    consulting_areas: Optional[List[str]] = None
+    target_client_type: Optional[Dict[str, Any]] = None
+    unique_value_proposition: Optional[str] = None
+    past_engagement_types: Optional[List[str]] = None
+    typical_engagement_length: Optional[str] = None
+    rate_range: Optional[str] = None
+
+
+class OnboardingProfileOut(BaseModel):
+    id: int
+    full_name: Optional[str] = None
+    professional_title: Optional[str] = None
+    years_of_experience: Optional[int] = None
+    professional_background: Optional[str] = None
+    previous_employers: Optional[List[str]] = None
+    education: Optional[Any] = None
+    certifications: Optional[List[str]] = None
+    industries_of_expertise: Optional[List[str]] = None
+    industries_of_interest: Optional[List[str]] = None
+    consulting_areas: Optional[List[str]] = None
+    target_client_type: Optional[Any] = None
+    unique_value_proposition: Optional[str] = None
+    past_engagement_types: Optional[List[str]] = None
+    typical_engagement_length: Optional[str] = None
+    rate_range: Optional[str] = None
+    onboarding_completed: bool = False
+
+    class Config:
+        from_attributes = True
+
+
 class EmailAccountOut(BaseModel):
     id: int
     provider: str

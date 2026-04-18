@@ -27,9 +27,10 @@ from pipeline import router as pipeline_router
 from proposals import router as proposals_router
 from billing import router as billing_router
 from connected_email import router as connected_email_router
+from onboarding import router as onboarding_router
 from models import ConsultantProfile, Lead, OutreachMessage, User
 from schemas import (ConsultantProfileOut, ProfileInput, ProfileUpdate,
-                      TokenResponse, UserCreate, OnboardingStatus)
+                      TokenResponse, UserCreate)
 from emails import send_welcome_email
 from fastapi.templating import Jinja2Templates
 
@@ -205,6 +206,7 @@ def generate_expertise(
     return profile
 
 
+app.include_router(onboarding_router)
 app.include_router(leads_router)
 app.include_router(outreach_router)
 app.include_router(proposals_router)
@@ -274,20 +276,3 @@ def health_check():
     }
 
 
-@app.get("/api/onboarding/status", response_model=OnboardingStatus)
-def get_onboarding_status(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    try:
-        has_profile = db.query(ConsultantProfile).filter(ConsultantProfile.user_id == current_user.id).first() is not None
-        has_lead = db.query(Lead).filter(Lead.user_id == current_user.id).first() is not None
-        has_outreach = db.query(OutreachMessage).filter(OutreachMessage.user_id == current_user.id).first() is not None
-    except SQLAlchemyError:
-        raise HTTPException(status_code=500, detail="Database error — please try again")
-
-    return OnboardingStatus(
-        has_profile=has_profile,
-        has_lead=has_lead,
-        has_outreach=has_outreach,
-    )

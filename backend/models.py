@@ -28,10 +28,31 @@ class ConsultantProfile(Base):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)
-    raw_inputs = Column(Text, nullable=False)
-    service_offerings = Column(JSON, nullable=False)
-    ideal_client_profile = Column(JSON, nullable=False)
-    value_proposition = Column(Text, nullable=False)
+
+    # Legacy fields — now nullable to support step-by-step onboarding
+    raw_inputs = Column(Text, nullable=True)
+    service_offerings = Column(JSON, nullable=True)
+    ideal_client_profile = Column(JSON, nullable=True)
+    value_proposition = Column(Text, nullable=True)
+
+    # Structured onboarding fields
+    full_name = Column(String(255), nullable=True)
+    professional_title = Column(String(255), nullable=True)
+    years_of_experience = Column(Integer, nullable=True)
+    professional_background = Column(Text, nullable=True)
+    previous_employers = Column(JSON, nullable=True)
+    education = Column(JSON, nullable=True)
+    certifications = Column(JSON, nullable=True)
+    industries_of_expertise = Column(JSON, nullable=True)
+    industries_of_interest = Column(JSON, nullable=True)
+    consulting_areas = Column(JSON, nullable=True)
+    target_client_type = Column(JSON, nullable=True)
+    unique_value_proposition = Column(Text, nullable=True)
+    past_engagement_types = Column(JSON, nullable=True)
+    typical_engagement_length = Column(String(100), nullable=True)
+    rate_range = Column(String(100), nullable=True)
+    onboarding_completed = Column(Boolean, nullable=False, default=False)
+
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     user = relationship("User", back_populates="consultant_profile")

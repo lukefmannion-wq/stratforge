@@ -95,6 +95,48 @@ export interface OnboardingStatus {
   has_outreach: boolean;
 }
 
+export interface OnboardingProfile {
+  id: number;
+  full_name?: string | null;
+  professional_title?: string | null;
+  years_of_experience?: number | null;
+  professional_background?: string | null;
+  previous_employers?: string[] | null;
+  certifications?: string[] | null;
+  industries_of_expertise?: string[] | null;
+  industries_of_interest?: string[] | null;
+  consulting_areas?: string[] | null;
+  target_client_type?: {
+    company_size?: string[];
+    client_roles?: string[];
+    geographic_focus?: string[];
+  } | null;
+  unique_value_proposition?: string | null;
+  past_engagement_types?: string[] | null;
+  typical_engagement_length?: string | null;
+  rate_range?: string | null;
+  onboarding_completed: boolean;
+}
+
+export interface OnboardingWizardStatus {
+  onboarding_completed: boolean;
+  profile: OnboardingProfile | null;
+}
+
+export type OnboardingStepPayload = Partial<Omit<OnboardingProfile, 'id' | 'onboarding_completed'>>;
+
+export interface AutoLead {
+  id: number;
+  company_name: string;
+  company_website?: string | null;
+  contact_role?: string | null;
+  fit_score?: string | null;
+  signal_justification?: string | null;
+  industry?: string | null;
+  status: string;
+  pipeline_stage: string;
+}
+
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;
@@ -138,8 +180,21 @@ export async function updateProfile(payload: Partial<ConsultantProfile>) {
 }
 
 export async function getOnboardingStatus() {
-  return apiFetch<OnboardingStatus>("/onboarding/status", {
+  return apiFetch<OnboardingWizardStatus>("/onboarding/status", {
     method: "GET",
+  });
+}
+
+export async function saveOnboardingStep(payload: OnboardingStepPayload) {
+  return apiFetch<OnboardingProfile>("/onboarding/step", {
+    method: "PUT",
+    body: payload,
+  });
+}
+
+export async function completeOnboarding() {
+  return apiFetch<{ leads: AutoLead[] }>("/onboarding/complete", {
+    method: "POST",
   });
 }
 
