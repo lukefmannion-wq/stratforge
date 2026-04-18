@@ -1,6 +1,11 @@
 import json
+import logging
 import os
+import traceback
 from datetime import datetime, timezone
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 import anthropic
 from dotenv import load_dotenv
@@ -111,9 +116,11 @@ def signup(request: Request, user_create: UserCreate, db: Session = Depends(get_
         send_welcome_email(user.email, getattr(user, "full_name", None))
     except HTTPException:
         raise
-    except SQLAlchemyError:
+    except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail="Database error — please try again")
+        logger.error(f"Signup error: {str(e)}")
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Signup failed: {str(e)}")
     access_token = create_access_token({"sub": str(user.id)})
     return {"access_token": access_token, "token_type": "bearer"}
 
