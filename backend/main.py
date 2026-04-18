@@ -34,18 +34,10 @@ app = FastAPI()
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 
-frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
-
-origins = [
-    "http://localhost:3000",
-    frontend_url,
-    "https://stratforge-v3-4-18-qgy91vwxr-prompt-forge-x.vercel.app",
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
