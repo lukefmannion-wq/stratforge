@@ -99,6 +99,10 @@ def _parse_claude_response(completion_text: str) -> dict:
 @app.post("/api/auth/signup", response_model=TokenResponse)
 @limiter.limit("10/minute")
 def signup(request: Request, user_create: UserCreate, db: Session = Depends(get_db)):
+    if len(user_create.password) > 72:
+        raise HTTPException(status_code=400, detail="Password must be 72 characters or fewer")
+    if len(user_create.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
     try:
         existing = db.query(User).filter(User.email == user_create.email).first()
         if existing:
